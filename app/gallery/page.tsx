@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 
 // LINE ID（環境変数または定数で管理する想定）
 const LINE_ID = '@あなたのLINE_ID'; // TODO: .envから取得するように変更
 
-export default function GalleryPage() {
+function GalleryContent() {
   const searchParams = useSearchParams();
   const tableID = searchParams.get('table');
   
@@ -602,5 +602,19 @@ export default function GalleryPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function GalleryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-stone-600 font-sans">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <GalleryContent />
+    </Suspense>
   );
 }

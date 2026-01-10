@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function SurveyPage() {
+function SurveyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tableId = searchParams.get('table') || '';
@@ -309,5 +309,19 @@ export default function SurveyPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function SurveyPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-stone-600 font-sans">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <SurveyContent />
+    </Suspense>
   );
 }
