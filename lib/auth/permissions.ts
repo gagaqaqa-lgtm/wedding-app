@@ -11,7 +11,7 @@ export function getRequiredRole(pathname: string): UserRole | null {
   if (pathname.startsWith('/dashboard')) {
     return 'venue_admin';
   }
-  // 公開ページ（/, /menu, /survey, /gallery）は認証不要
+  // 公開ページ（/guest, /guest/survey, /guest/gallery）は認証不要
   return null;
 }
 

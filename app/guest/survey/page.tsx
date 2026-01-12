@@ -21,35 +21,25 @@ function SurveyContent() {
     setRating(value);
   };
 
-  const handleMapClick = () => {
-    // 鍵が開くアニメーションを表示
+  // ギャラリーへの遷移処理（共通化）
+  const navigateToGallery = () => {
     setIsUnlocked(true);
-    
-    // マップを開く
-    window.open('https://www.google.com/maps', '_blank');
-    
-    // 鍵が開くアニメーションを見せてからギャラリーへ遷移（テーブルIDを渡す）
     setTimeout(() => {
-      router.push(`/gallery${tableId ? `?table=${tableId}` : ''}`);
+      router.push(`/guest/gallery${tableId ? `?table=${tableId}` : ''}`);
     }, 800);
   };
 
-  const handleFeedbackSubmit = () => {
-    // コンソールにフィードバックを出力（将来的にDBに保存）
-    console.log('Feedback:', {
-      rating,
-      feedback: feedbackText,
-      tableId,
-      timestamp: new Date().toISOString(),
-    });
+  const handleMapClick = () => {
+    // マップを開く
+    window.open('https://www.google.com/maps', '_blank');
+    // ギャラリーへ遷移
+    navigateToGallery();
+  };
 
-    // 鍵が開くアニメーションを表示
-    setIsUnlocked(true);
-    
-    // 鍵が開くアニメーションを見せてからギャラリーへ遷移（テーブルIDを渡す）
-    setTimeout(() => {
-      router.push(`/gallery${tableId ? `?table=${tableId}` : ''}`);
-    }, 800);
+  const handleFeedbackSubmit = () => {
+    // 将来的にDBに保存する処理をここに追加
+    // ギャラリーへ遷移
+    navigateToGallery();
   };
 
   return (
