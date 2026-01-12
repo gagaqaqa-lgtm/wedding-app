@@ -10,6 +10,17 @@ interface Venue {
   maxCapacity: number;
 }
 
+// 会場情報のダミーデータ
+const VENUE_INFO: Record<string, { name: string }> = {
+  'venue-001': { name: '表参道テラス' },
+  'venue-002': { name: '代々木ガーデン' },
+  'venue-003': { name: '青山ホール' },
+};
+
+interface VenueVenuesPageProps {
+  params: Promise<{ venueId: string }>;
+}
+
 // アイコン (インラインSVG)
 const Icons = {
   Plus: ({ className }: { className?: string }) => <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
@@ -24,17 +35,6 @@ const Icons = {
   Download: ({ className }: { className?: string }) => <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Copy: ({ className }: { className?: string }) => <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
 };
-
-// 会場情報のダミーデータ
-const VENUE_INFO: Record<string, { name: string }> = {
-  'venue-001': { name: '表参道テラス' },
-  'venue-002': { name: '代々木ガーデン' },
-  'venue-003': { name: '青山ホール' },
-};
-
-interface VenueVenuesPageProps {
-  params: Promise<{ venueId: string }>;
-}
 
 // ダミーデータ
 const INITIAL_VENUES: Venue[] = [
@@ -61,6 +61,7 @@ const INITIAL_VENUES: Venue[] = [
 export default function VenueVenuesPage({ params }: VenueVenuesPageProps) {
   const { venueId } = use(params);
   const venueInfo = VENUE_INFO[venueId] || { name: '不明な会場' };
+  
   const [venues, setVenues] = useState<Venue[]>(INITIAL_VENUES);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
