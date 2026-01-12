@@ -163,7 +163,7 @@ export default function GuestPortalPage() {
   // Step 2: Secret Gate
   if (step === 'gate' && selectedWedding) {
     return (
-      <div className="min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900">
+      <div className="h-[100dvh] relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900">
         {/* 背景装飾 */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div
@@ -180,132 +180,137 @@ export default function GuestPortalPage() {
           />
         </div>
 
-        {/* コンテンツ */}
-        <div className="relative z-10 min-h-[100dvh] flex flex-col items-center justify-center px-4 py-8 sm:py-12 overflow-y-auto">
-          <div className="w-full max-w-md space-y-8 sm:space-y-10 pt-safe pb-safe">
-            {/* 戻るボタン */}
-            <motion.button
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              onClick={() => {
-                setStep('entrance');
-                setPasscode('');
-              }}
-              className="text-white/70 hover:text-white text-sm font-sans flex items-center gap-2 self-start pb-safe-top"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              挙式一覧に戻る
-            </motion.button>
-
-            {/* 鍵アイコン */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-              className="flex justify-center"
-            >
-              <motion.div
-                animate={shake ? {
-                  x: [0, -30, 30, -30, 30, -15, 15, -8, 8, 0],
-                } : isUnlocked ? {
-                  rotate: [0, -10, 10, -10, 0],
-                  scale: [1, 1.2, 1],
-                } : {}}
-                transition={{
-                  duration: shake ? 0.5 : 0.6,
-                  ease: 'easeInOut',
+        {/* コンテンツ - Flexboxで1画面完結 */}
+        <div className="relative z-10 h-full flex flex-col justify-between items-center px-4 pt-safe pb-safe overflow-hidden">
+          <div className="w-full max-w-md flex flex-col flex-1 justify-between min-h-0">
+            {/* 上部エリア: 戻るボタン */}
+            <div className="flex-shrink-0 pt-safe-top">
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                onClick={() => {
+                  setStep('entrance');
+                  setPasscode('');
                 }}
-                className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 text-white/80"
+                className="text-white/70 hover:text-white text-xs sm:text-sm font-sans flex items-center gap-2 py-2"
               >
-                {isUnlocked ? (
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                  </svg>
-                ) : (
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                )}
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                挙式一覧に戻る
+              </motion.button>
+            </div>
+
+            {/* 中央エリア: 鍵アイコン、メッセージ、パスコード表示 - Flexboxで均等配置 */}
+            <div className="flex-1 flex flex-col justify-center items-center min-h-0 gap-2 sm:gap-3 md:gap-4">
+              {/* 鍵アイコン */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="flex-shrink-0"
+              >
+                <motion.div
+                  animate={shake ? {
+                    x: [0, -30, 30, -30, 30, -15, 15, -8, 8, 0],
+                  } : isUnlocked ? {
+                    rotate: [0, -10, 10, -10, 0],
+                    scale: [1, 1.2, 1],
+                  } : {}}
+                  transition={{
+                    duration: shake ? 0.5 : 0.6,
+                    ease: 'easeInOut',
+                  }}
+                  className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 max-w-[80px] max-h-[80px] text-white/80"
+                >
+                  {isUnlocked ? (
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                    </svg>
+                  ) : (
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  )}
+                </motion.div>
               </motion.div>
-            </motion.div>
 
-            {/* メッセージ */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6, ease: 'easeOut' }}
-              className="text-center space-y-4"
-            >
-              <h2 className="font-shippori text-white text-xl sm:text-2xl md:text-3xl font-semibold">
-                {selectedWedding.groom}・{selectedWedding.bride} 御両家 挙式
-              </h2>
-              <p className="text-white/80 text-sm sm:text-base md:text-lg font-sans leading-relaxed">
-                卓上のQRカードに記載された4桁の番号を入力してください
-              </p>
-            </motion.div>
-
-            {/* パスコード表示 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6, ease: 'easeOut' }}
-              className="flex justify-center gap-3 sm:gap-4"
-            >
-              {Array.from({ length: 4 }).map((_, index) => {
-                const isFilled = index < passcode.length;
-                return (
-                  <motion.div
-                    key={index}
-                    animate={{
-                      scale: isFilled ? [1, 1.2, 1] : 1,
-                    }}
-                    transition={{
-                      duration: 0.25,
-                      ease: 'easeOut',
-                    }}
-                    className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full transition-all duration-300 ${
-                      isUnlocked
-                        ? 'bg-green-500 border-green-500'
-                        : isFilled
-                        ? 'bg-white border-white'
-                        : 'bg-transparent border-2 border-white/40'
-                    }`}
-                  />
-                );
-              })}
-            </motion.div>
-
-            {/* ロック解除中のメッセージ */}
-            {isUnlocking && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-white/70 text-sm sm:text-base text-center font-sans pb-safe-bottom"
+              {/* メッセージ */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.6, ease: 'easeOut' }}
+                className="text-center flex-shrink-0 px-2"
               >
-                ロック解除中...
-              </motion.p>
-            )}
+                <h2 className="font-shippori text-white text-base sm:text-lg md:text-xl lg:text-2xl font-semibold mb-1 sm:mb-2 leading-tight">
+                  {selectedWedding.groom}・{selectedWedding.bride} 御両家 挙式
+                </h2>
+                <p className="text-white/80 text-xs sm:text-sm md:text-base font-sans leading-relaxed">
+                  卓上のQRカードに記載された4桁の番号を入力してください
+                </p>
+              </motion.div>
 
-            {/* テンキーパッド */}
+              {/* パスコード表示 */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.6, ease: 'easeOut' }}
+                className="flex justify-center gap-2 sm:gap-3 flex-shrink-0"
+              >
+                {Array.from({ length: 4 }).map((_, index) => {
+                  const isFilled = index < passcode.length;
+                  return (
+                    <motion.div
+                      key={index}
+                      animate={{
+                        scale: isFilled ? [1, 1.2, 1] : 1,
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        ease: 'easeOut',
+                      }}
+                      className={`w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full transition-all duration-300 flex-shrink-0 ${
+                        isUnlocked
+                          ? 'bg-green-500 border-green-500'
+                          : isFilled
+                          ? 'bg-white border-white'
+                          : 'bg-transparent border-2 border-white/40'
+                      }`}
+                    />
+                  );
+                })}
+              </motion.div>
+
+              {/* ロック解除中のメッセージ */}
+              {isUnlocking && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-white/70 text-xs sm:text-sm text-center font-sans flex-shrink-0"
+                >
+                  ロック解除中...
+                </motion.p>
+              )}
+            </div>
+
+            {/* 下部エリア: テンキーパッド */}
             {!isUnlocking && !isUnlocked && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6, duration: 0.6, ease: 'easeOut' }}
-                className="pb-safe-bottom"
+                className="flex-shrink-0 pb-safe-bottom"
               >
-                <div className="max-w-xs mx-auto">
+                <div className="max-w-xs mx-auto w-full">
                   {/* 数字キー 1-9 */}
-                  <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-2 sm:mb-3">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                       <motion.button
                         key={num}
                         whileTap={{ scale: 0.92 }}
                         onClick={() => handleNumberPress(num.toString())}
                         disabled={passcode.length >= 4}
-                        className="w-full aspect-square rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white text-xl sm:text-2xl font-light flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation hover:bg-white/20 active:bg-white/30"
+                        className="w-full max-w-[80px] mx-auto aspect-square rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white text-lg sm:text-xl md:text-2xl font-light flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation hover:bg-white/20 active:bg-white/30"
                       >
                         {num}
                       </motion.button>
@@ -313,13 +318,13 @@ export default function GuestPortalPage() {
                   </div>
 
                   {/* 下部行: 空、0、削除 */}
-                  <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     <div></div>
                     <motion.button
                       whileTap={{ scale: 0.92 }}
                       onClick={() => handleNumberPress('0')}
                       disabled={passcode.length >= 4}
-                      className="w-full aspect-square rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white text-xl sm:text-2xl font-light flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation hover:bg-white/20 active:bg-white/30"
+                      className="w-full max-w-[80px] mx-auto aspect-square rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 text-white text-lg sm:text-xl md:text-2xl font-light flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation hover:bg-white/20 active:bg-white/30"
                     >
                       0
                     </motion.button>
@@ -327,7 +332,7 @@ export default function GuestPortalPage() {
                       whileTap={{ scale: 0.92 }}
                       onClick={handleDelete}
                       disabled={passcode.length === 0}
-                      className="w-full aspect-square rounded-full bg-transparent text-white/70 text-sm sm:text-base font-normal flex items-center justify-center transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed touch-manipulation hover:text-white active:opacity-100"
+                      className="w-full max-w-[80px] mx-auto aspect-square rounded-full bg-transparent text-white/70 text-xs sm:text-sm md:text-base font-normal flex items-center justify-center transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed touch-manipulation hover:text-white active:opacity-100"
                     >
                       削除
                     </motion.button>
