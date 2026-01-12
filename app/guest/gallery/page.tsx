@@ -363,18 +363,13 @@ function GalleryContent() {
             </div>
 
             {/* カウントダウン - エレガント */}
-            <motion.div
-              key={timeLeft}
-              initial={{ scale: 1.2, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex items-baseline justify-center gap-2"
-            >
+            <div className="flex items-baseline justify-center gap-2">
               <p className="font-serif text-stone-300/70 text-lg sm:text-xl">あと</p>
               <p className="font-serif text-amber-300 text-6xl sm:text-7xl font-light drop-shadow-lg">
                 {timeLeft}
               </p>
               <p className="font-serif text-stone-300/70 text-lg sm:text-xl">秒</p>
-            </motion.div>
+            </div>
           </div>
         </motion.div>
       )}
@@ -690,7 +685,7 @@ function GalleryContent() {
               <div className="absolute inset-0 bg-gradient-to-t from-stone-50 via-transparent to-transparent" />
             </div>
 
-            {/* 会場名と日付 */}
+            {/* タイトル */}
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
@@ -699,10 +694,10 @@ function GalleryContent() {
                 className="text-center"
               >
                 <h1 className="font-serif text-white text-4xl md:text-5xl font-bold mb-3 drop-shadow-2xl">
-                  {VENUE_INFO.name}
+                  Wedding Photo Gallery
                 </h1>
                 <p className="font-serif text-amber-200 text-xl md:text-2xl font-light tracking-wider drop-shadow-lg">
-                  {VENUE_INFO.date}
+                  お二人の思い出
                 </p>
               </motion.div>
             </div>
@@ -721,7 +716,7 @@ function GalleryContent() {
             className="sticky top-0 z-40 border-b border-stone-200/50 shadow-sm transition-all duration-300"
           >
             <div className="flex items-center justify-between px-4 h-16 max-w-md mx-auto relative">
-              {/* 中央: 会場名または日付 */}
+              {/* 中央: タイトル */}
               <motion.div
                 className="absolute left-1/2 transform -translate-x-1/2"
                 initial={false}
@@ -730,7 +725,7 @@ function GalleryContent() {
                 }}
               >
                 <h1 className="font-bold text-stone-800 text-base font-shippori whitespace-nowrap">
-                  {isScrolled ? VENUE_INFO.name : VENUE_INFO.date}
+                  Wedding Photo Gallery
                 </h1>
               </motion.div>
 
