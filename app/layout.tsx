@@ -1,13 +1,5 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Shippori_Mincho } from 'next/font/google';
-
-const shippori = Shippori_Mincho({ 
-  weight: ['400', '500', '600', '700'],
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-shippori',
-});
 
 export const metadata: Metadata = {
   title: 'THE GRAND GARDEN',
@@ -20,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ja" className={shippori.variable}>
-      <body className="font-serif min-h-screen bg-stone-50 text-stone-800">
+    <html lang="ja">
+      <body className="antialiased">
         {children}
       </body>
     </html>
