@@ -31,6 +31,7 @@ function GalleryContent() {
   const [showOpeningModal, setShowOpeningModal] = useState(true);
   const [timeLeft, setTimeLeft] = useState(10);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showLineModal, setShowLineModal] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
   const [viewingImage, setViewingImage] = useState<{ id: number; url: string; alt: string } | null>(null);
@@ -141,6 +142,12 @@ function GalleryContent() {
         return [...prev, photo.id];
       }
     });
+  };
+
+  // 画像の右クリック/長押し時のLINE誘導
+  const handleImageContextMenu = (e: React.MouseEvent, photo: { id: number; url: string; alt: string }) => {
+    e.preventDefault();
+    setShowLineModal(true);
   };
 
   const handleCloseLightbox = () => {
@@ -309,45 +316,45 @@ function GalleryContent() {
 
           <div className="text-center space-y-8 w-full max-w-md relative z-10">
             {/* SPONSORED - エレガントなデザイン */}
-            <div className="mb-4">
-              <p className="font-shippori text-champagne-300/80 text-sm font-semibold tracking-[0.3em] uppercase">
+            <div className="mb-6">
+              <p className="font-serif text-stone-300/80 text-sm font-semibold tracking-[0.3em] uppercase">
                 SPONSORED
               </p>
             </div>
 
             {/* メインメッセージ */}
-            <div className="mb-6">
+            <div className="mb-8">
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="font-shippori text-white text-3xl font-light tracking-wide leading-relaxed px-4 mb-8 break-keep text-balance text-center"
+                className="font-serif text-stone-100 text-2xl sm:text-3xl font-light tracking-wide leading-relaxed px-4 mb-6 break-keep text-balance text-center"
               >
-                アルバムを読み込んでいます...
+                お二人の特別な一日の写真を<br />ご覧いただけます
               </motion.p>
             </div>
 
             {/* 広告枠（グラスモーフィズム） */}
-            <div className="mb-6 flex justify-center">
-              <div className="w-[300px] h-[250px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden relative flex items-center justify-center shadow-2xl">
+            <div className="mb-8 flex justify-center">
+              <div className="w-full max-w-[300px] h-[200px] sm:h-[250px] bg-white/10 backdrop-blur-xl border border-stone-400/20 rounded-2xl overflow-hidden relative flex items-center justify-center shadow-2xl">
                 {/* ダミー広告 */}
                 <div className="absolute inset-0">
                   <img
                     src="https://picsum.photos/300/250?random=999"
                     alt="Advertisement"
-                    className="w-full h-full object-cover opacity-50"
+                    className="w-full h-full object-cover opacity-40"
                   />
                 </div>
-                <div className="relative z-10 bg-black/30 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
-                  <p className="text-white/90 text-sm font-medium">広告バナーが入ります</p>
+                <div className="relative z-10 bg-stone-900/50 backdrop-blur-md px-6 py-4 rounded-xl border border-stone-400/20">
+                  <p className="text-stone-100 text-sm sm:text-base font-serif">広告バナーが入ります</p>
                 </div>
               </div>
             </div>
 
-            {/* プログレスバー - シャンパンゴールド */}
-            <div className="w-full max-w-sm mx-auto px-4 mb-4">
-              <div className="w-full bg-white/10 backdrop-blur-sm rounded-full h-3 overflow-hidden shadow-inner border border-white/5">
+            {/* プログレスバー - くすみカラー */}
+            <div className="w-full max-w-sm mx-auto px-4 mb-6">
+              <div className="w-full bg-stone-800/30 backdrop-blur-sm rounded-full h-2 overflow-hidden shadow-inner border border-stone-400/20">
                 <motion.div
-                  className="bg-gradient-to-r from-champagne-400 via-champagne-500 to-champagne-600 h-3 rounded-full shadow-lg"
+                  className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-400 h-2 rounded-full shadow-lg"
                   initial={{ width: 0 }}
                   animate={{ width: `${((10 - timeLeft) / 10) * 100}%` }}
                   transition={{ duration: 1, ease: 'linear' }}
@@ -362,11 +369,11 @@ function GalleryContent() {
               animate={{ scale: 1, opacity: 1 }}
               className="flex items-baseline justify-center gap-2"
             >
-              <p className="font-shippori text-champagne-200/70 text-xl">あと</p>
-              <p className="font-shippori text-champagne-300 text-7xl font-light drop-shadow-lg">
+              <p className="font-serif text-stone-300/70 text-lg sm:text-xl">あと</p>
+              <p className="font-serif text-amber-300 text-6xl sm:text-7xl font-light drop-shadow-lg">
                 {timeLeft}
               </p>
-              <p className="font-shippori text-champagne-200/70 text-xl">秒</p>
+              <p className="font-serif text-stone-300/70 text-lg sm:text-xl">秒</p>
             </motion.div>
           </div>
         </motion.div>
@@ -512,6 +519,62 @@ function GalleryContent() {
         )}
       </AnimatePresence>
 
+      {/* LINE誘導モーダル（画像右クリック/長押し時） */}
+      <AnimatePresence>
+        {showLineModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9998] flex items-center justify-center p-4"
+            onClick={() => setShowLineModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white/90 backdrop-blur-xl w-full max-w-sm rounded-3xl p-8 shadow-2xl relative text-center border border-stone-200/50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShowLineModal(false)}
+                className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-2 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-rose-200 to-rose-300 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <span className="text-3xl">📸</span>
+                </div>
+                <h2 className="font-serif text-stone-800 text-xl sm:text-2xl font-semibold mb-2">
+                  高画質な写真をLINEで受け取る
+                </h2>
+                <p className="font-serif text-stone-600 text-sm leading-relaxed">
+                  この写真の高画質版を、公式LINEよりお届けします
+                </p>
+              </div>
+
+              <a
+                href={getLineUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-[#06C755] hover:bg-[#05b34c] text-white rounded-2xl py-4 px-4 shadow-lg shadow-green-200 transition-all font-serif font-semibold"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                    <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.542 6.916-4.076 9.448-6.972 1.725-1.91 2.536-3.878 2.536-5.771zm-15.891 3.232c-.145 0-.263-.117-.263-.262v-3.437h-1.393c-.145 0-.263-.117-.263-.262v-.523c0-.145.118-.262.263-.262h3.836c.145 0 .263.117.263.262v.523c0 .145-.118.262-.263.262h-1.393v3.437c0 .145-.118.262-.263.262h-.787zm3.113 0c-.145 0-.262-.117-.262-.262v-4.485c0-.145.117-.262.262-.262h.787c.145 0 .263.117.263.262v4.485c0 .145-.118.262-.263.262h-.787zm6.136 0h-.787c-.145 0-.263-.117-.263-.262v-2.348l-1.611-2.12c-.033-.044-.047-.071-.047-.101 0-.082.067-.148.148-.148h.831c.123 0 .227.067.284.168l1.183 1.597 1.183-1.597c.057-.101.161-.168.284-.168h.831c.081 0 .148.066.148.148 0 .03-.014.057-.047.101l-1.611 2.12v2.348c0 .145-.118.262-.263.262zm3.424 0h-3.08c-.145 0-.263-.117-.263-.262v-4.485c0-.145.118-.262.263-.262h.787c.145 0 .263.117.263.262v3.7h1.767c.145 0 .263.117.263.262v.523c0 .145-.118.262-.263.262z"/>
+                  </svg>
+                  <span>LINEで受け取る</span>
+                </div>
+              </a>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 保存完了＆LINE誘導モーダル（訴求強化版） */}
       {showSaveModal && (
         <div 
@@ -558,21 +621,21 @@ function GalleryContent() {
               </motion.span>
             </div>
             
-            <h2 className="font-bold text-2xl text-stone-800 mb-2 font-shippori">
-              保存完了しました！
+            <h2 className="font-semibold text-2xl sm:text-3xl text-stone-800 mb-4 font-serif">
+              保存完了しました
             </h2>
             
             {/* 注意喚起エリア */}
-            <div className="bg-gradient-to-br from-coral-50 to-champagne-50 border border-coral-200/50 rounded-xl p-4 mb-6 text-left backdrop-blur-sm">
-              <p className="font-bold text-coral-700 text-base mb-2 flex items-center gap-2 font-shippori">
+            <div className="bg-gradient-to-br from-rose-50 to-amber-50 border border-rose-200/50 rounded-xl p-5 sm:p-6 mb-6 text-left backdrop-blur-sm">
+              <p className="font-semibold text-rose-800 text-base sm:text-lg mb-3 flex items-center gap-2 font-serif">
                 <span>📸</span>
-                <span>記念写真をお届けします</span>
+                <span>高画質な写真をLINEで受け取れます</span>
               </p>
-              <p className="text-stone-800 text-sm leading-relaxed font-shippori">
+              <p className="text-stone-700 text-sm sm:text-base leading-relaxed font-serif">
                 {tableID ? (
-                  <>プロカメラマンが撮影した<strong>【テーブル{tableID}での記念写真】</strong>を、後日公式LINEよりお届けします。</>
+                  <>プロカメラマンが撮影した<strong className="font-semibold">【テーブル{tableID}での記念写真】</strong>を、公式LINEより高画質版でお届けします。</>
                 ) : (
-                  <>プロカメラマンが撮影した<strong>【こちらのテーブルの記念写真】</strong>を、後日公式LINEよりお届けします。</>
+                  <>プロカメラマンが撮影した<strong className="font-semibold">【こちらのテーブルの記念写真】</strong>を、公式LINEより高画質版でお届けします。</>
                 )}
               </p>
             </div>
@@ -635,10 +698,10 @@ function GalleryContent() {
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="text-center"
               >
-                <h1 className="font-shippori text-white text-4xl md:text-5xl font-bold mb-3 drop-shadow-2xl">
+                <h1 className="font-serif text-white text-4xl md:text-5xl font-bold mb-3 drop-shadow-2xl">
                   {VENUE_INFO.name}
                 </h1>
-                <p className="font-shippori text-champagne-200 text-xl md:text-2xl font-light tracking-wider drop-shadow-lg">
+                <p className="font-serif text-amber-200 text-xl md:text-2xl font-light tracking-wider drop-shadow-lg">
                   {VENUE_INFO.date}
                 </p>
               </motion.div>
@@ -725,6 +788,7 @@ function GalleryContent() {
                           }`}
                           onLoad={() => handleImageLoad(item.data.id)}
                           onLoadStart={() => handleImageStartLoad(item.data.id)}
+                          onContextMenu={(e) => handleImageContextMenu(e, item.data)}
                           loading="lazy"
                         />
 

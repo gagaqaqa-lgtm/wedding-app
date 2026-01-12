@@ -25,17 +25,25 @@ interface MenuItem {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   
+  // パスから venueId を抽出（/dashboard/[venueId]/... の形式）
+  const pathSegments = pathname?.split('/').filter(Boolean) || [];
+  const venueIdIndex = pathSegments.indexOf('dashboard');
+  const venueId = venueIdIndex !== -1 && pathSegments[venueIdIndex + 1] ? pathSegments[venueIdIndex + 1] : null;
+  
   // 未読件数を取得（実際の実装ではAPIから取得）
   const unreadCount = getUnreadCount(INITIAL_NOTIFICATIONS);
 
+  // ベースパスを決定（venueIdがある場合は動的ルート、ない場合は従来のルート）
+  const basePath = venueId ? `/dashboard/${venueId}` : '/dashboard';
+
   // プランナーの動線を最優先にしたメニュー順序
   const menuItems: MenuItem[] = [
-    { label: "ホーム", href: "/dashboard", icon: Icons.Home },
-    { label: "お知らせ", href: "/dashboard/notifications", icon: Icons.Bell, badge: unreadCount > 0 ? unreadCount : undefined },
-    { label: "挙式管理", href: "/dashboard/weddings", icon: Icons.Calendar },
-    { label: "会場設定", href: "/dashboard/venues", icon: Icons.Building },
-    { label: "アカウント一覧", href: "/dashboard/accounts", icon: Icons.UserGroup },
-    { label: "設定", href: "/dashboard/settings", icon: Icons.Settings },
+    { label: "ホーム", href: basePath, icon: Icons.Home },
+    { label: "お知らせ", href: `${basePath}/notifications`, icon: Icons.Bell, badge: unreadCount > 0 ? unreadCount : undefined },
+    { label: "挙式管理", href: `${basePath}/weddings`, icon: Icons.Calendar },
+    { label: "会場設定", href: `${basePath}/venues`, icon: Icons.Building },
+    { label: "アカウント一覧", href: `${basePath}/accounts`, icon: Icons.UserGroup },
+    { label: "設定", href: `${basePath}/settings`, icon: Icons.Settings },
   ];
 
   return (
@@ -53,7 +61,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+            const isActive = pathname === item.href || (item.href !== basePath && pathname?.startsWith(item.href));
             
             return (
               <Link
