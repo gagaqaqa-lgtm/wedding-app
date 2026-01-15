@@ -1,6 +1,6 @@
-# Handover Document: Wedding Photo App (Current Status)
+# Handover Document: Wedding Photo App (Complete System Overview)
 
-> **最終更新**: 2026年1月（コードベース分析に基づく）  
+> **最終更新**: 2026年1月（コードベース完全分析に基づく）  
 > **対象読者**: 新規開発者、AIアシスタント、プロジェクト引き継ぎ担当者
 
 ---
@@ -9,10 +9,15 @@
 
 1. [システム概要 & アーキテクチャ](#1-システム概要--アーキテクチャ)
 2. [現在の実装機能（Code Analysis）](#2-現在の実装機能code-analysis)
+   - [2.1 スーパーアドミン機能 (`app/admin/`)](#21-スーパーアドミン機能-appadmin)
+   - [2.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)](#22-プランナー管理画面-appdashboarddashboard)
+   - [2.3 新郎新婦側機能 (`app/couple/`)](#23-新郎新婦側機能-appcouple)
+   - [2.4 ゲスト側機能 (`app/(guest)/guest/`)](#24-ゲスト側機能-appguestguest)
 3. [ディレクトリ・ファイル構成図](#3-ディレクトリファイル構成図)
 4. [UI/デザインガイドライン（現状の実装に基づく）](#4-uideザインガイドライン現状の実装に基づく)
 5. [データの扱い](#5-データの扱い)
-6. [引き継ぎ事項 / NEXT STEP](#6-引き継ぎ事項--next-step)
+6. [アーキテクチャパターンと設計思想](#6-アーキテクチャパターンと設計思想)
+7. [引き継ぎ事項 / NEXT STEP](#7-引き継ぎ事項--next-step)
 
 ---
 
@@ -20,48 +25,196 @@
 
 ### 1.1 プロジェクトの目的
 
-結婚式の写真共有・演出プラットフォーム。新郎新婦がゲスト向けに写真・メッセージを設定し、ゲストが写真をアップロード・閲覧できるシステム。
+結婚式の写真共有・演出プラットフォーム。**4つの主要なユーザーロール**を持つマルチテナントシステム：
+
+1. **スーパーアドミン**: システム全体の管理、会場契約管理、広告収益管理
+2. **プランナー（会場管理者）**: 会場ごとの挙式管理、ゲスト管理、設定管理
+3. **新郎新婦**: 卓ごとの写真・メッセージ設定、ゲスト写真の閲覧・ダウンロード
+4. **ゲスト**: 写真アップロード、アンケート回答、写真閲覧
 
 ### 1.2 ターゲットデバイス
 
 **モバイルファースト（スマートフォン特化）**
 - ユーザーのほぼ100%がスマートフォン（iPhone SE〜Pro Max相当）でアクセス
-- PC表示の考慮は最低限
+- PC表示の考慮は最低限（管理画面はPC対応）
 - `dvh` (Dynamic Viewport Height) を使用してブラウザバーの影響を回避
 - タップ領域は44px以上を確保
 
-### 1.3 Next.js App Router構成
+### 1.3 Next.js App Router構成（完全版）
 
 ```
 app/
-├── couple/                    # 新郎新婦側機能
-│   ├── layout.tsx            # 共通レイアウト（ヒーローセクション、フッターナビ）
-│   ├── page.tsx              # ホーム画面（STEP 1, 2の進捗表示）
-│   ├── tables/               # 卓設定専用ページ
-│   │   └── page.tsx          # 卓一覧と詳細設定
-│   ├── gallery/              # 写真ギャラリー
-│   │   └── page.tsx          # 写真閲覧・ダウンロード
-│   ├── login/                # ログイン
-│   ├── photos/               # （存在するが未確認）
-│   └── settings/             # 設定
+├── admin/                        # スーパーアドミン機能
+│   ├── layout.tsx                # サイドバーナビゲーション（Indigo系）
+│   ├── page.tsx                  # ダッシュボード（統計、会場一覧）
+│   ├── venues/                   # 会場管理
+│   │   ├── page.tsx              # 会場一覧（CRUD、検索、フィルタ）
+│   │   ├── [id]/                 # 会場詳細
+│   │   │   ├── page.tsx          # 会場詳細（統計、アカウント管理、アクティビティログ）
+│   │   │   └── _components/
+│   │   │       └── AddAccountDialog.tsx
+│   │   └── _components/
+│   │       └── CreateVenueDialog.tsx
+│   ├── announcements/            # お知らせ管理
+│   │   ├── page.tsx              # お知らせ一覧（CRUD、優先度、配信状態）
+│   │   └── _components/
+│   │       └── CreateAnnouncementDialog.tsx
+│   ├── ads/                      # 広告収益管理
+│   │   └── page.tsx              # 収益ダッシュボード（KPI、グラフ、会場別パフォーマンス）
+│   ├── team/                     # チーム管理
+│   │   ├── page.tsx              # メンバー一覧（招待、権限管理）
+│   │   └── _components/
+│   │       └── InviteMemberDialog.tsx
+│   └── settings/                 # 設定
+│       └── page.tsx
 │
-├── (guest)/                  # ゲスト側機能
-│   └── guest/
-│       ├── (entry)/          # エントリーページ
-│       ├── (main)/           # メイン機能
-│       │   └── gallery/      # 写真ギャラリー・アップロード
-│       └── (onboarding)/     # オンボーディング
-│           └── survey/       # アンケート
-│
-├── (dashboard)/              # プランナー管理画面
+├── (dashboard)/                  # プランナー管理画面（Route Group）
+│   ├── layout.tsx                # 共通レイアウト（認証チェック用）
 │   └── dashboard/
+│       ├── (auth)/               # 認証関連（Route Group）
+│       │   └── login/
+│       │       └── page.tsx      # ログインページ
+│       └── (main)/               # メイン機能（Route Group）
+│           ├── page.tsx          # リダイレクト（/dashboard/login へ）
+│           └── [venueId]/        # 会場別ダッシュボード
+│               ├── layout.tsx    # サイドバーナビゲーション（Emerald系）、NotificationProvider
+│               ├── page.tsx      # ダッシュボード（メニューカード、最新お知らせ）
+│               ├── weddings/      # 挙式管理
+│               │   ├── page.tsx  # 挙式一覧（日付色分け、ロック状態、検索）
+│               │   └── [id]/
+│               │       ├── page.tsx  # 挙式詳細（卓設定、ゲスト管理、ロック機能）
+│               │       └── _components/
+│               │           └── FeedbackTab.tsx
+│               ├── venues/       # 会場設定
+│               │   └── page.tsx  # 会場一覧（QRコード生成、URL共有）
+│               ├── accounts/     # アカウント管理
+│               │   └── page.tsx  # アカウント一覧（admin/planner権限）
+│               ├── notifications/  # 通知管理
+│               │   └── page.tsx  # 通知一覧（既読管理、Context API使用）
+│               ├── settings/    # 設定
+│               │   ├── page.tsx  # 設定ページ（Google Maps、LINE連携、口コミ設定）
+│               │   └── _components/
+│               │       └── ReviewSettings.tsx
+│               └── _components/
+│                   └── FeedbackFeed.tsx
 │
-├── admin/                    # スーパーアドミン
+├── couple/                       # 新郎新婦側機能
+│   ├── layout.tsx                # 共通レイアウト（ヒーローセクション、フッターナビ）
+│   ├── page.tsx                  # ホーム画面（STEP 1, 2の進捗表示）
+│   ├── tables/                   # 卓設定専用ページ
+│   │   └── page.tsx              # 卓一覧と詳細設定
+│   ├── gallery/                   # 写真ギャラリー
+│   │   └── page.tsx              # 写真閲覧・ダウンロード
+│   ├── login/                    # ログイン
+│   ├── photos/                   # （存在するが未確認）
+│   └── settings/                 # 設定
 │
-└── layout.tsx                # ルートレイアウト
+├── (guest)/                      # ゲスト側機能（Route Group）
+│   ├── layout.tsx                # ゲスト共通レイアウト
+│   └── guest/
+│       ├── (entry)/              # エントリーページ（Route Group）
+│       │   └── page.tsx          # パスコード入力画面
+│       ├── (main)/               # メイン機能（Route Group）
+│       │   └── gallery/          # 写真ギャラリー・アップロード
+│       │       └── page.tsx      # ゲストギャラリー
+│       └── (onboarding)/         # オンボーディング（Route Group）
+│           └── survey/           # アンケート
+│               └── page.tsx      # 評価・フィードバック
+│
+└── layout.tsx                    # ルートレイアウト
 ```
 
-### 1.4 ページの役割分担
+### 1.4 主要なページの役割分担
+
+#### `/admin` (スーパーアドミンダッシュボード)
+- **役割**: システム全体の監視・管理
+- **機能**:
+  - 総契約会場数、今月の新規契約、稼働率、推定収益のKPI表示
+  - 最近登録された会場の一覧表示
+  - 会場管理、お知らせ管理、広告収益管理へのナビゲーション
+
+#### `/admin/venues` (会場管理)
+- **役割**: 会場のCRUD操作、契約プラン管理
+- **機能**:
+  - 会場一覧表示（検索、フィルタ、ソート）
+  - 会場作成・編集・削除
+  - プラン（LIGHT/STANDARD/PREMIUM）とステータス（ACTIVE/SUSPENDED/ONBOARDING）管理
+  - 会場詳細ページへのリンク
+
+#### `/admin/venues/[id]` (会場詳細)
+- **役割**: 個別会場の詳細管理
+- **機能**:
+  - 統計情報（今月の挙式数、ゲスト数、ストレージ使用量、広告収益）
+  - アカウント管理（追加・削除、権限設定）
+  - アクティビティログ（ログイン、挙式作成、写真アップロード、ゲスト登録）
+  - タブUI（概要、アカウント、アクティビティ）
+
+#### `/admin/announcements` (お知らせ管理)
+- **役割**: システム全体へのお知らせ配信
+- **機能**:
+  - お知らせ一覧（優先度、配信状態、配信日時）
+  - お知らせ作成・編集・削除
+  - 優先度（NORMAL/HIGH）とステータス（SENT/DRAFT）管理
+
+#### `/admin/ads` (広告収益管理)
+- **役割**: 広告収益の監視・分析
+- **機能**:
+  - KPIカード（総収益、インプレッション、クリック率、CTR）
+  - 月別収益推移グラフ（CSSベースの棒グラフ）
+  - 会場別パフォーマンスランキング（インプレッション、収益）
+
+#### `/admin/team` (チーム管理)
+- **役割**: スーパーアドミンチームのメンバー管理
+- **機能**:
+  - メンバー一覧（OWNER/MEMBER権限、ACTIVE/INVITEDステータス）
+  - メンバー招待（メール送信）
+  - メンバー削除
+
+#### `/dashboard/[venueId]` (プランナーダッシュボード)
+- **役割**: 会場ごとの管理画面ホーム
+- **機能**:
+  - メニューカード（挙式管理、会場設定、システム設定）
+  - 最新のお知らせバナー（未読優先表示、Context API連携）
+  - フィードバックフィード（最新3件、挙式情報付き）
+
+#### `/dashboard/[venueId]/weddings` (挙式管理)
+- **役割**: 挙式の一覧・管理
+- **機能**:
+  - 挙式一覧（日付色分け：土曜=青、日曜=赤、平日=グレー）
+  - 検索・フィルタ（日付範囲、プランナー名、ロック状態）
+  - ロック機能（データ確定、編集不可）
+  - 挙式詳細ページへのリンク
+
+#### `/dashboard/[venueId]/weddings/[id]` (挙式詳細)
+- **役割**: 個別挙式の詳細管理
+- **機能**:
+  - 挙式基本情報（日付、時間、会場名、プランナー名、ゲスト数）
+  - 新郎新婦情報（姓名、フルネーム表示）
+  - 卓設定（デフォルト12卓、命名パターン、ゲスト割り当て）
+  - ロック機能（挙式データの確定）
+  - フィードバックタブ（新郎新婦・ゲストからのフィードバック）
+  - QRコード生成・URL共有
+
+#### `/dashboard/[venueId]/notifications` (通知管理)
+- **役割**: 会場向け通知の一覧・既読管理
+- **機能**:
+  - 通知一覧表示（タイプ別アイコン、既読/未読状態）
+  - 既読管理（Context API使用、オプティミスティックUI更新）
+  - 未読件数バッジ表示
+  - 相対時間表示（「X分前」「X時間前」「X日前」）
+
+#### `/dashboard/[venueId]/settings` (設定)
+- **役割**: 会場の各種設定管理
+- **機能**:
+  - Google MapsレビューURL設定
+  - LINE公式アカウントURL設定
+  - 表示会場名設定
+  - 口コミ収集設定（`ReviewSettings`コンポーネント）:
+    - 新郎新婦向け設定（URL、評価閾値）
+    - ゲスト向け設定（URL、評価閾値）
+    - 通知メールアドレス設定
+  - URLバリデーション、メールアドレスバリデーション
+  - 変更検知（保存ボタンの有効/無効制御）
 
 #### `/couple` (Home)
 - **役割**: 全体進捗の確認
@@ -86,38 +239,455 @@ app/
   - レビューゲート経由のダウンロード（`CoupleReviewGateDrawer`）
   - 広告表示（`DownloadWaitModal`）
 
+#### `/guest/(entry)` (エントリーページ)
+- **役割**: ゲストの認証・挙式選択
+- **機能**:
+  - 会場名表示（背景画像付き）
+  - 挙式選択（新郎新婦名、時間）
+  - パスコード入力（4桁、数字キーパッド）
+  - 認証成功時のアニメーション（鍵が開く）
+  - 認証失敗時のシェイクアニメーション
+
+#### `/guest/(onboarding)/survey` (アンケート)
+- **役割**: ゲストからの評価・フィードバック収集
+- **機能**:
+  - 星評価（1-5星、ホバーエフェクト）
+  - 評価に応じた分岐:
+    - 高評価（4-5星）: Googleマップレビュー誘導
+    - 低評価（1-3星）: 内部フィードバック（Textarea）
+  - ギャラリーへの遷移
+
+#### `/guest/(main)/gallery` (ゲストギャラリー)
+- **役割**: 写真のアップロード・閲覧
+- **機能**:
+  - オープニングモーダル（会場名、日付、メッセージ）
+  - タブUI（「新郎新婦より」「この卓のアルバム」）
+  - 写真アップロード（5枚制限、LINE連携で無制限化）
+  - コンプライアンスチェックモーダル
+  - 写真削除機能
+  - 会場設定による機能制限分岐（`enableLineUnlock`フラグ）
+
 ---
 
 ## 2. 現在の実装機能（Code Analysis）
 
-### 2.1 コンプライアンス機能
+### 2.1 スーパーアドミン機能 (`app/admin/`)
 
-#### ゲスト側 (`app/(guest)/guest/(main)/gallery/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-- **状態管理**:
-  - `showComplianceModal`: モーダルの表示/非表示
-  - `selectedFiles`: 選択された待機中のファイル
-  - `previewUrls`: プレビュー用のURL（`URL.createObjectURL`）
-  - `hasAgreedToCompliance`: 同意チェックボックスの状態
-
-- **UIコンポーネント**:
-  - `<Dialog>` を使用した警告モーダル
-  - 警告アイコン: 🔞 公序良俗、💔 不快な写真、🍺 迷惑行為
-  - プレビュー画像のグリッド表示
-  - 「マナーを守ります」のチェックボックス
-
-- **フロー**:
-  1. ファイル選択 → `handleFileSelect` が呼ばれる
-  2. 制限チェック（5枚制限、LINE連携状況）
-  3. コンプライアンスモーダルを表示
-  4. 同意チェック後、「投稿する」ボタンで `handlePhotoUpload` 実行
-
-#### 新郎新婦側 (`app/couple/tables/page.tsx`)
+#### 2.1.1 ダッシュボード (`app/admin/page.tsx`)
 
 **実装状況**: ✅ 完全実装
 
+**主要機能**:
+- **KPIカード**（`MetricCard`コンポーネント）:
+  - 総契約会場数（`Building2`アイコン、Indigo-500）
+  - 今月の新規契約（`TrendingUp`アイコン、Indigo-600）
+  - 稼働率（`Activity`アイコン、Indigo-700）
+  - 今月の推定収益（`DollarSign`アイコン、Indigo-800）
+- **最近登録された会場テーブル**:
+  - 会場名、プラン、登録日、ステータスを表示
+  - 日付フォーマット（`date-fns`、日本語ロケール）
+  - ステータスバッジ（Indigo/Destructive/Warning）
+  - 会場管理ページへのリンク
+
+**データ構造**:
+```typescript
+interface Venue {
+  id: string;
+  name: string;
+  code: string; // URLに使われる会場コード
+  plan: VenuePlan; // 'LIGHT' | 'STANDARD' | 'PREMIUM'
+  status: VenueStatus; // 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING'
+  lastActiveAt: Date;
+  adminName: string;
+  adminEmail: string;
+  createdAt: Date;
+}
+```
+
+**UI/UXのこだわり**:
+- `framer-motion`によるカードのフェードインアニメーション
+- ホバー時のシャドウ変化（`hover:shadow-md`）
+- カラーコードによる視覚的な階層（Indigo-500〜800）
+
+#### 2.1.2 会場管理 (`app/admin/venues/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **検索機能**: 会場名・コード・管理者名で検索
+- **フィルタ機能**: プラン（LIGHT/STANDARD/PREMIUM）、ステータス（ACTIVE/SUSPENDED/ONBOARDING）でフィルタ
+- **ソート機能**: 登録日、最終アクティブ日時でソート
+- **CRUD操作**:
+  - 作成: `CreateVenueDialog`コンポーネント
+  - 編集: ドロップダウンメニューから「編集」
+  - 削除: ドロップダウンメニューから「削除」（確認ダイアログ）
+- **会場詳細ページへのリンク**: テーブル行をクリック
+
+**UI/UXのこだわり**:
+- 検索バーにリアルタイムフィルタリング
+- ドロップダウンメニューによるアクション（編集、削除、ログイン）
+- バッジによる視覚的なステータス表示
+- テーブル行のホバーエフェクト
+
+#### 2.1.3 会場詳細 (`app/admin/venues/[id]/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **統計情報カード**:
+  - 今月の挙式数（`Calendar`アイコン）
+  - 今月のゲスト数（`Users`アイコン）
+  - ストレージ使用量（`HardDrive`アイコン、GB表示）
+  - 今月の広告収益（`DollarSign`アイコン、円表示）
+- **タブUI**（`Tabs`コンポーネント）:
+  - 概要: 基本情報、統計情報
+  - アカウント: アカウント一覧、追加ダイアログ（`AddAccountDialog`）
+  - アクティビティ: アクティビティログ（ログイン、挙式作成、写真アップロード、ゲスト登録）
+- **アカウント管理**:
+  - アカウント追加（名前、メール、権限）
+  - アカウント削除
+  - 権限バッジ（Admin/Planner）
+
+**データ構造**:
+```typescript
+interface VenueDetail extends Venue {
+  monthlyWeddings: number;
+  monthlyGuests: number;
+  storageUsed: number; // GB
+  monthlyAdRevenue: number; // 円
+}
+
+interface ActivityLog {
+  id: string;
+  type: 'login' | 'wedding_created' | 'photo_uploaded' | 'guest_registered';
+  description: string;
+  timestamp: Date;
+}
+```
+
+**UI/UXのこだわり**:
+- タブによる情報の整理
+- アクティビティログの時系列表示
+- アカウント追加時のバリデーション
+
+#### 2.1.4 お知らせ管理 (`app/admin/announcements/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **お知らせ一覧テーブル**:
+  - タイトル、本文、優先度、ステータス、配信日時
+  - 優先度バッジ（重要/通常）
+  - ステータスバッジ（配信済み/下書き）
+- **CRUD操作**:
+  - 作成: `CreateAnnouncementDialog`コンポーネント
+  - 編集: ドロップダウンメニューから「編集」
+  - 削除: ドロップダウンメニューから「削除」（`toast`で確認）
+
+**データ構造**:
+```typescript
+interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  priority: AnnouncementPriority; // 'NORMAL' | 'HIGH'
+  status: AnnouncementStatus; // 'SENT' | 'DRAFT'
+  sentAt: Date;
+}
+```
+
+**UI/UXのこだわり**:
+- 優先度による視覚的な強調（HIGH = 重要バッジ）
+- 下書き状態の明確な表示
+- `sonner`によるトースト通知
+
+#### 2.1.5 広告収益管理 (`app/admin/ads/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **KPIカード**:
+  - 総収益（`DollarSign`アイコン、Green-600）
+  - 総インプレッション（`Eye`アイコン、Blue-600）
+  - 総クリック数（`MousePointerClick`アイコン、Purple-600）
+  - CTR（`TrendingUp`アイコン、Orange-600）
+- **月別収益推移グラフ**:
+  - CSSベースの棒グラフ（`RevenueChart`コンポーネント）
+  - 最大値に対する相対的な高さ表示
+  - ホバー時のツールチップ（金額表示）
+- **会場別パフォーマンスランキング**:
+  - ランキング、会場名、インプレッション、収益、ステータス
+  - ステータスバッジ（Active/Suspended）
+
+**データ構造**:
+```typescript
+interface VenuePerformance {
+  rank: number;
+  venueName: string;
+  impressions: number;
+  revenue: number;
+  status: 'active' | 'suspended';
+}
+```
+
+**UI/UXのこだわり**:
+- グラフの視覚的な表現（CSSのみで実装）
+- ランキングによる競争意識の喚起
+- カラーコードによるKPIの区別
+
+#### 2.1.6 チーム管理 (`app/admin/team/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **メンバー一覧テーブル**:
+  - 名前、メール、権限、ステータス、参加日
+  - 権限バッジ（Owner/Member）
+  - ステータスバッジ（Active/Invited）
+- **メンバー招待**:
+  - `InviteMemberDialog`コンポーネント
+  - メールアドレス入力、招待メール送信
+- **メンバー削除**:
+  - ドロップダウンメニューから「削除」
+
+**データ構造**:
+```typescript
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamMemberRole; // 'OWNER' | 'MEMBER'
+  status: TeamMemberStatus; // 'ACTIVE' | 'INVITED'
+  joinedAt: Date;
+  avatar?: string;
+}
+```
+
+**UI/UXのこだわり**:
+- 現在のユーザーを「あなた」として表示
+- 権限による視覚的な区別（Owner = Indigo、Member = Secondary）
+
+#### 2.1.7 レイアウト (`app/admin/layout.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **サイドバーナビゲーション**:
+  - Indigo-800背景、固定幅（`w-64`）
+  - メニュー項目: ホーム、会場管理、お知らせ、広告収益、チーム管理
+  - アクティブ状態の視覚的フィードバック（左端バー、背景色）
+  - 設定メニューとログアウトボタン（最下部）
+- **ロゴエリア**: "Guest Link"ブランド名
+
+**UI/UXのこだわり**:
+- アクティブページの明確な表示（左端バー、背景色、太字）
+- ホバー時のスムーズなトランジション
+- 設定とログアウトの分離（視覚的な区別）
+
+### 2.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)
+
+#### 2.2.1 ダッシュボード (`app/(dashboard)/dashboard/(main)/[venueId]/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **メニューカード**（グラデーション背景）:
+  - 挙式管理（Emerald系グラデーション）
+  - 会場設定（Blue系グラデーション）
+  - システム設定（Gray系グラデーション）
+- **最新のお知らせバナー**:
+  - 未読優先表示（未読 = 左端バー、背景色）
+  - 日付ソート（新しい順）
+  - 通知一覧ページへのリンク
+- **フィードバックフィード**（`FeedbackFeed`コンポーネント）:
+  - 最新3件のフィードバック表示
+  - 挙式情報付き（家族名、日付）
+  - 評価（星表示）
+  - フィードバック詳細ページへのリンク
+
+**UI/UXのこだわり**:
+- グラデーションによる視覚的な魅力
+- 未読通知の明確な表示（左端バー、背景色）
+- フィードバックの即座の確認
+
+#### 2.2.2 挙式管理 (`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **挙式一覧カード**:
+  - 日付色分け（土曜=青、日曜=赤、平日=グレー）
+  - 家族名、時間、会場名、プランナー名、ゲスト数
+  - ロック状態表示（ロックアイコン、ロック日時）
+  - 挙式詳細ページへのリンク
+- **検索・フィルタ機能**:
+  - 日付範囲フィルタ
+  - プランナー名検索
+  - ロック状態フィルタ（すべて/ロック済み/未ロック）
+- **挙式作成**: 「新規挙式」ボタン（未実装、TODO）
+
+**データ構造**:
+```typescript
+interface Wedding {
+  id: number;
+  date: string;
+  familyNames: string;
+  time: string;
+  hall: string;
+  isLocked: boolean;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  plannerName?: string;
+  guestCount?: number;
+  mode?: 'INTERACTIVE' | 'SIMPLE';
+}
+```
+
+**UI/UXのこだわり**:
+- 日付色分けによる視覚的な区別（土日を強調）
+- ロック状態の明確な表示
+- 検索・フィルタの即座の反映
+
+#### 2.2.3 挙式詳細 (`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`)
+
+**実装状況**: ✅ 完全実装（大規模な実装）
+
+**主要機能**:
+- **挙式基本情報**:
+  - 日付・時間表示（読みやすい形式）
+  - 新郎新婦名（「&」で区切り、アクセントカラー）
+  - 会場名、プランナー名、ゲスト数
+  - モード表示（INTERACTIVE/SIMPLE）
+- **新郎新婦情報編集**:
+  - 姓名入力（新郎・新婦それぞれ）
+  - フルネーム表示（「&」で区切り）
+- **卓設定**:
+  - デフォルト12卓（`VENUE_DEFAULT_SETTINGS`）
+  - 命名パターン（alphabet/number/matsu）
+  - 卓追加・削除
+  - ゲスト割り当て（ドラッグ&ドロップ未実装、TODO）
+  - 卓ごとの写真・メッセージ設定
+- **ロック機能**:
+  - ロック状態の切り替え（`Switch`コンポーネント）
+  - ロック時の警告ダイアログ
+  - ロック後の編集不可状態
+- **フィードバックタブ**（`FeedbackTab`コンポーネント）:
+  - 新郎新婦からのフィードバック
+  - ゲストからのフィードバック
+  - 評価（星表示）、コメント、日付
+- **QRコード生成・URL共有**:
+  - QRコード表示（`QrCode`アイコン）
+  - URLコピー機能
+  - ダウンロード機能（未実装、TODO）
+
+**UI/UXのこだわり**:
+- 新郎新婦名の視覚的な表現（「&」をアクセントカラーで）
+- ロック機能の明確な警告
+- タブによる情報の整理
+- ツールチップによる説明
+
+#### 2.2.4 通知管理 (`app/(dashboard)/dashboard/(main)/[venueId]/notifications/page.tsx`)
+
+**実装状況**: ✅ 完全実装（アーキテクチャパターン適用）
+
+**主要機能**:
+- **通知一覧表示**:
+  - タイプ別アイコン（Alert/Info/Check）
+  - タイトル、本文、日付
+  - 既読/未読状態の視覚的区別
+  - 相対時間表示（「X分前」「X時間前」「X日前」）
+- **既読管理**:
+  - 通知クリックで自動既読
+  - Context APIによる状態管理
+  - オプティミスティックUI更新
+
+**アーキテクチャパターン**:
+- **View層**: `VenueNotificationsPage`（表示のみ）
+- **ViewModel層**: `useNotification`フック（ロジック管理）
+- **Repository層**: `notificationService`（データ取得・更新）
+
+**データ構造**:
+```typescript
+interface Notification {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  readByUserIds: string[];
+  type: NotificationType; // 'system' | 'alert' | 'info' | 'success'
+  isImportant?: boolean;
+  priority?: NotificationPriority; // 'normal' | 'important'
+  relatedResourceId?: string;
+  actionUrl?: string;
+}
+```
+
+**UI/UXのこだわり**:
+- タイプ別の視覚的な区別（アイコン、色）
+- 未読通知の明確な表示
+- 相対時間による親しみやすい表示
+
+#### 2.2.5 設定 (`app/(dashboard)/dashboard/(main)/[venueId]/settings/page.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **基本設定**:
+  - Google MapsレビューURL設定
+  - LINE公式アカウントURL設定
+  - 表示会場名設定
+- **口コミ収集設定**（`ReviewSettings`コンポーネント）:
+  - 新郎新婦向け設定:
+    - 口コミ投稿先URL（Googleマップ、みんなのウェディング等）
+    - 評価閾値（星の数、デフォルト4）
+  - ゲスト向け設定:
+    - 口コミ投稿先URL
+    - 評価閾値（星の数、デフォルト4）
+  - 通知メールアドレス設定
+- **バリデーション**:
+  - URL形式チェック（`isValidUrl`）
+  - メールアドレス形式チェック（`isValidEmail`）
+- **変更検知**:
+  - 変更がある場合のみ保存ボタン有効化
+  - 変更前の値との比較（`useMemo`）
+
+**UI/UXのこだわり**:
+- リアルタイムバリデーション（エラー表示）
+- URL確認ボタン（新しいタブで開く）
+- 変更検知によるUX向上（不要な保存を防止）
+
+#### 2.2.6 レイアウト (`app/(dashboard)/dashboard/(main)/[venueId]/layout.tsx`)
+
+**実装状況**: ✅ 完全実装
+
+**主要機能**:
+- **サイドバーナビゲーション**:
+  - Emerald-800〜Teal-900グラデーション背景
+  - メニュー項目: ホーム、お知らせ、挙式管理、会場設定、アカウント一覧、設定
+  - 未読通知バッジ（お知らせメニューに表示）
+  - アクティブ状態の視覚的フィードバック
+- **契約プラン表示カード**:
+  - Light Plan: 薄い背景、プログレスバー
+  - Standard Plan: グラデーション背景、シャドウ
+- **ヘッダー**:
+  - Emerald-600〜Teal-600グラデーション背景
+  - ユーザーメニュー（`UserNav`コンポーネント）
+- **NotificationProvider**:
+  - Context APIによる通知状態管理
+  - 未読件数の計算
+
+**UI/UXのこだわり**:
+- Emerald系による統一感
+- プラン表示による契約状況の明確化
+- 未読通知バッジによる注意喚起
+
+### 2.3 新郎新婦側機能 (`app/couple/`)
+
+#### 2.3.1 コンプライアンス機能
+
+**実装状況**: ✅ 完全実装
+
+**新郎新婦側 (`app/couple/tables/page.tsx`)**:
 - **状態管理**: ゲスト側と同様の構造
 - **UI**: ゲスト側と同じデザイン（オレンジ色の警告枠）
 - **文言調整**: 「ゲストに公開されます」という表現を使用
@@ -127,188 +697,287 @@ app/
   3. 同意チェック後、「写真を追加する」ボタンで `handlePhotoUploadAfterCompliance` 実行
   4. ファイルを `currentPhotos` に追加（保存ボタンで確定）
 
-### 2.2 UI/UXロジック
+#### 2.3.2 UI/UXロジック
 
-#### ヒーローセクション（`app/couple/layout.tsx`）
-
-**実装状況**: ✅ 完全実装
-
-- **背景画像**:
-  - `MOCK_WEDDING.venueCoverImage` から読み込み
-  - 式場のカバー写真として表示
-
+**ヒーローセクション（`app/couple/layout.tsx`）**:
+- **背景画像**: `MOCK_WEDDING.venueCoverImage` から読み込み
 - **視認性向上**:
-  - 全体に `bg-black/20` を適用（写真を少し暗く）
+  - 全体に `bg-black/20` を適用
   - 下からグラデーション: `bg-gradient-to-t from-black/80 via-black/40 to-transparent`
-  - 文字にドロップシャドウを適用（`drop-shadow-[0_4px_12px_rgba(0,0,0,0.7)]` など）
+  - 文字にドロップシャドウを適用
+- **高さ調整**: スマホ `min-h-[280px]`、PC `md:min-h-[400px]`
+- **カウントダウン表示**: 挙式前「あと XX 日」、挙式後「Happy Wedding!」
 
-- **高さ調整**:
-  - スマホ: `min-h-[280px]`
-  - PC: `md:min-h-[400px]`
-  - パディング: `py-4 md:py-8`
+**スマホ最適化**:
+- **dvh対応**: `min-h-screen` → `min-h-dvh`
+- **余白の圧縮**: `py-6` → `py-4 md:py-6`
+- **日本語テキスト最適化**: 見出しに `text-balance` を追加
+- **タップ領域**: ボタン高さ `h-12` (48px) 以上
 
-- **カウントダウン表示**:
-  - 挙式前: 「あと XX 日」と日付表示
-  - 挙式後: 「Happy Wedding!」と祝福メッセージ
+#### 2.3.3 ステータス管理（卓設定画面）
 
-#### スマホ最適化
-
-**実装状況**: ✅ 完全実装
-
-- **dvh対応**:
-  - `min-h-screen` → `min-h-dvh`
-  - `h-[85vh]` → `h-[85dvh]`
-  - `max-h-[90vh]` → `max-h-[90dvh]`
-
-- **余白の圧縮**:
-  - `py-6` → `py-4 md:py-6`
-  - `space-y-6` → `space-y-3 md:space-y-6`
-  - `mb-6` → `mb-4 md:mb-6`
-
-- **日本語テキスト最適化**:
-  - 見出しに `text-balance` を追加
-  - フォントサイズ: `text-xl md:text-2xl`（レスポンシブ）
-
-- **タップ領域**:
-  - ボタン高さ: `h-12` (48px) または `h-14` (56px)
-  - カード最小高さ: `min-h-[100px] md:min-h-[120px]`
-
-### 2.3 ステータス管理（卓設定画面）
-
-**実装状況**: ✅ 完全実装
-
-#### 完了判定ロジック
-
+**完了判定ロジック**:
 ```typescript
 const completedTables = tables.filter(table => 
   table.isCompleted === true || table.isSkipped === true
 ).length;
 ```
 
-- **完了の定義**: `isCompleted === true` または `isSkipped === true`
+**3つの視覚パターン**:
+1. **パターン1: 写真登録済み** - 背景: 設定した写真、ステータスバッジ: 緑のチェックマーク、`opacity-90`
+2. **パターン2: 未登録** - 背景: 白背景、破線枠、大きな「＋」アイコン、`ring-2 ring-emerald-200`
+3. **パターン3: スキップ済み** - 背景: 薄いグレー、アイコン: 「共通写真」、ステータスバッジ: 「共通」
 
-#### 3つの視覚パターン
+**進捗バー**: 「完了状況: X / Y 卓」、`framer-motion`でアニメーション、100%完了時グラデーション
 
-1. **パターン1: 写真登録済み**
-   - 背景: 設定した写真を表示
-   - ステータスバッジ: 緑のチェックマーク（右上）
-   - スタイル: `opacity-90`（未完了を目立たせるため）
+#### 2.3.4 レビュー・口コミ機能
 
-2. **パターン2: 未登録**
-   - 背景: 白背景、破線枠（`border-4 border-dashed border-emerald-300`）
-   - アイコン: 大きな「＋」アイコン（中央）
-   - ステータスバッジ: 「未設定」（オレンジ）
-   - スタイル: `ring-2 ring-emerald-200`（目立たせる）
+**`PostWeddingThankYouCard`**:
+- **localStorage連携**: キー `wedding_app_has_reviewed_${coupleId}`
+- **条件分岐ロジック**: 高評価（4-5星）→外部サイト、低評価（1-3星）→内部フィードバック
+- **性善説UX**: スキップボタンなし
 
-3. **パターン3: スキップ済み**
-   - 背景: 薄いグレー（`bg-gray-100`）
-   - アイコン: 「共通写真」アイコン（中央）
-   - ステータスバッジ: 「共通」（グレー）
+**`CoupleReviewGateDrawer`**: ダウンロード前のレビューゲート
 
-#### 進捗バー
+### 2.4 ゲスト側機能 (`app/(guest)/guest/`)
 
-- 表示: 「完了状況: X / Y 卓」
-- プログレスバー: `framer-motion` でアニメーション
-- 100%完了時: グラデーション（`from-emerald-500 to-teal-500`）
-
-### 2.4 レビュー・口コミ機能
+#### 2.4.1 エントリーページ (`app/(guest)/guest/(entry)/page.tsx`)
 
 **実装状況**: ✅ 完全実装
 
-#### `PostWeddingThankYouCard` (`components/PostWeddingThankYouCard.tsx`)
+**主要機能**:
+- **会場名表示**: 背景画像付き、グラデーションオーバーレイ
+- **挙式選択**: 新郎新婦名、時間を表示
+- **パスコード入力**:
+  - 4桁数字キーパッド
+  - 入力中の視覚的フィードバック（ドット表示）
+  - 認証成功時のアニメーション（鍵が開く）
+  - 認証失敗時のシェイクアニメーション
 
-- **localStorage連携**:
-  - キー: `wedding_app_has_reviewed_${coupleId}`
-  - レビュー済みの場合、入力フォームを非表示
+**UI/UXのこだわり**:
+- `framer-motion`によるスムーズなアニメーション
+- 背景画像による雰囲気作り
+- パスコード入力の直感的なUI
 
-- **条件分岐ロジック**:
-  - **高評価（4-5星）**: 外部サイト（Googleマップ）へ誘導
-  - **低評価（1-3星）**: 内部フィードバック（Textarea）を表示
+#### 2.4.2 アンケート (`app/(guest)/guest/(onboarding)/survey/page.tsx`)
 
-- **性善説UX**:
-  - ボタンクリック = 完了とみなす
-  - スキップボタンなし
+**実装状況**: ✅ 完全実装
 
-#### `CoupleReviewGateDrawer` (`components/CoupleReviewGateDrawer.tsx`)
+**主要機能**:
+- **星評価**: 1-5星、ホバーエフェクト
+- **評価に応じた分岐**:
+  - 高評価（4-5星）: Googleマップレビュー誘導
+  - 低評価（1-3星）: 内部フィードバック（Textarea）
+- **ギャラリーへの遷移**: 評価完了後、自動遷移
 
-- ダウンロード前のレビューゲート
-- レビュー完了後、`DownloadWaitModal` を表示
+**UI/UXのこだわり**:
+- 星評価の視覚的な魅力
+- 評価に応じた適切な分岐
+- スムーズな遷移
+
+#### 2.4.3 ゲストギャラリー (`app/(guest)/guest/(main)/gallery/page.tsx`)
+
+**実装状況**: ✅ 完全実装（大規模な実装）
+
+**主要機能**:
+- **オープニングモーダル**: 会場名、日付、メッセージ
+- **タブUI**: 「新郎新婦より」「この卓のアルバム」
+- **写真アップロード**:
+  - 5枚制限（デフォルト）
+  - LINE連携で無制限化（`enableLineUnlock`フラグで制御）
+  - コンプライアンスチェックモーダル
+  - プレビュー表示
+- **写真削除機能**: アップロード済み写真の削除
+- **会場設定による機能制限分岐**:
+  - `enableLineUnlock === true`: LINE連携モーダル表示
+  - `enableLineUnlock === false`: トーストエラー表示、上限到達ボタン無効化
+
+**データ構造**:
+```typescript
+const VENUE_INFO = {
+  name: string;
+  coverImage: string;
+  date: string;
+  enableLineUnlock: boolean; // 会場設定による機能制限フラグ
+};
+```
+
+**UI/UXのこだわり**:
+- タブによる情報の整理
+- コンプライアンスチェックによる安全性
+- 会場設定による柔軟な機能制御
 
 ---
 
 ## 3. ディレクトリ・ファイル構成図
 
-### 3.1 新郎新婦側 (`app/couple/`)
+### 3.1 スーパーアドミン (`app/admin/`)
+
+```
+app/admin/
+├── layout.tsx                    # サイドバーナビゲーション（Indigo系）
+├── page.tsx                      # ダッシュボード（KPI、会場一覧）
+├── venues/
+│   ├── page.tsx                  # 会場一覧（CRUD、検索、フィルタ）
+│   ├── [id]/
+│   │   ├── page.tsx              # 会場詳細（統計、アカウント、アクティビティ）
+│   │   └── _components/
+│   │       └── AddAccountDialog.tsx
+│   └── _components/
+│       └── CreateVenueDialog.tsx
+├── announcements/
+│   ├── page.tsx                  # お知らせ一覧（CRUD、優先度、配信状態）
+│   └── _components/
+│       └── CreateAnnouncementDialog.tsx
+├── ads/
+│   └── page.tsx                  # 広告収益ダッシュボード（KPI、グラフ、ランキング）
+├── team/
+│   ├── page.tsx                  # メンバー一覧（招待、権限管理）
+│   └── _components/
+│       └── InviteMemberDialog.tsx
+└── settings/
+    └── page.tsx
+```
+
+### 3.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)
+
+```
+app/(dashboard)/dashboard/
+├── (auth)/
+│   └── login/
+│       └── page.tsx              # ログインページ
+└── (main)/
+    ├── page.tsx                  # リダイレクト（/dashboard/login へ）
+    └── [venueId]/
+        ├── layout.tsx            # サイドバーナビゲーション（Emerald系）、NotificationProvider
+        ├── page.tsx              # ダッシュボード（メニューカード、最新お知らせ、フィードバック）
+        ├── weddings/
+        │   ├── page.tsx          # 挙式一覧（日付色分け、検索、フィルタ）
+        │   └── [id]/
+        │       ├── page.tsx      # 挙式詳細（基本情報、卓設定、ロック機能、フィードバック）
+        │       └── _components/
+        │           └── FeedbackTab.tsx
+        ├── venues/
+        │   └── page.tsx          # 会場設定（QRコード生成、URL共有）
+        ├── accounts/
+        │   └── page.tsx          # アカウント一覧（admin/planner権限）
+        ├── notifications/
+        │   └── page.tsx          # 通知一覧（既読管理、Context API）
+        ├── settings/
+        │   ├── page.tsx          # 設定ページ（Google Maps、LINE連携、口コミ設定）
+        │   └── _components/
+        │       └── ReviewSettings.tsx
+        └── _components/
+            └── FeedbackFeed.tsx
+```
+
+### 3.3 新郎新婦側 (`app/couple/`)
 
 ```
 app/couple/
-├── layout.tsx                 # 共通レイアウト
-│   ├── HeroCountdown          # ヒーローセクション（カウントダウン）
-│   ├── MOCK_WEDDING_DATE      # 挙式日（モック）
-│   ├── MOCK_WEDDING           # 式場カバー写真（モック）
-│   └── フッターナビゲーション # ホーム、卓設定、みんなの写真
-│
-├── page.tsx                   # ホーム画面
-│   ├── STEP 1: プロフィール・挨拶設定
-│   ├── STEP 2: ゲスト・卓設定（/couple/tables へ遷移）
-│   ├── 進捗計算ロジック
-│   └── Sheet: 全員への写真シート
-│
+├── layout.tsx                    # 共通レイアウト（ヒーローセクション、フッターナビ）
+├── page.tsx                      # ホーム画面（STEP 1, 2の進捗表示）
 ├── tables/
-│   └── page.tsx               # 卓設定ページ
-│       ├── 進捗バー（完了状況: X / Y 卓）
-│       ├── 卓カードグリッド（3パターン）
-│       ├── Sheet: 卓詳細設定
-│       └── Dialog: コンプライアンスチェックモーダル
-│
-└── gallery/
-    └── page.tsx               # 写真ギャラリー
-        ├── Pre-Wedding Lock Screen
-        ├── 写真グリッド（Masonry）
-        ├── CoupleReviewGateDrawer
-        └── DownloadWaitModal
+│   └── page.tsx                  # 卓設定ページ（進捗バー、卓カード、コンプライアンスモーダル）
+├── gallery/
+│   └── page.tsx                  # 写真ギャラリー（Pre-Wedding Lock Screen、写真グリッド、レビューゲート）
+├── login/
+│   └── page.tsx
+├── photos/
+│   └── page.tsx                  # （存在するが未確認）
+└── settings/
+    └── page.tsx
 ```
 
-### 3.2 ゲスト側 (`app/(guest)/guest/`)
+### 3.4 ゲスト側 (`app/(guest)/guest/`)
 
 ```
 app/(guest)/guest/
+├── (entry)/
+│   └── page.tsx                  # エントリーページ（パスコード入力）
 ├── (main)/
 │   └── gallery/
-│       └── page.tsx           # ゲストギャラリー
-│           ├── OpeningModal   # オープニングモーダル
-│           ├── タブUI（新郎新婦より / この卓のアルバム）
-│           ├── 写真アップロード機能
-│           ├── コンプライアンスチェックモーダル
-│           ├── 投稿制限（5枚、LINE連携で無制限）
-│           └── 写真削除機能
-│
-├── (entry)/
-│   └── page.tsx               # エントリーページ
-│
+│       └── page.tsx              # ゲストギャラリー（オープニングモーダル、タブUI、写真アップロード、コンプライアンス）
 └── (onboarding)/
     └── survey/
-        └── page.tsx           # アンケート
+        └── page.tsx              # アンケート（星評価、フィードバック、ギャラリー遷移）
 ```
 
-### 3.3 コンポーネント (`components/`)
+### 3.5 コンポーネント (`components/`)
 
 ```
 components/
-├── ui/                        # shadcn/ui コンポーネント
+├── ui/                           # shadcn/ui コンポーネント
 │   ├── dialog.tsx
 │   ├── sheet.tsx
 │   ├── checkbox.tsx
-│   └── ...
+│   ├── button.tsx
+│   ├── card.tsx
+│   ├── table.tsx
+│   ├── badge.tsx
+│   ├── tabs.tsx
+│   ├── switch.tsx
+│   ├── tooltip.tsx
+│   ├── dropdown-menu.tsx
+│   ├── form.tsx
+│   ├── input.tsx
+│   ├── label.tsx
+│   ├── radio-group.tsx
+│   ├── select.tsx
+│   ├── textarea.tsx
+│   └── sonner.tsx
 │
-├── PostWeddingThankYouCard.tsx    # 挙式後のサンクスレター
-├── CoupleReviewGateDrawer.tsx     # ダウンロード前のレビューゲート
-├── DownloadWaitModal.tsx          # ダウンロード待機モーダル（広告表示）
+├── admin/
+│   └── Common/
+│       ├── Header.tsx
+│       └── Sidebar.tsx
+│
+├── notifications/
+│   ├── NotificationHeader.tsx
+│   ├── NotificationList.tsx
+│   ├── NotificationCard.tsx
+│   └── EmptyState.tsx
+│
+├── guest/
+│   ├── Lightbox.tsx
+│   └── OpeningModal.tsx
+│
+├── PostWeddingThankYouCard.tsx   # 挙式後のサンクスレター
+├── CoupleReviewGateDrawer.tsx    # ダウンロード前のレビューゲート
+├── DownloadWaitModal.tsx         # ダウンロード待機モーダル（広告表示）
 ├── AdCard.tsx                    # 広告カードコンポーネント
-├── MasonryGallery.tsx             # Masonryレイアウトのギャラリー
-└── guest/
-    ├── Lightbox.tsx              # ライトボックス
-    └── OpeningModal.tsx          # オープニングモーダル
+├── MasonryGallery.tsx            # Masonryレイアウトのギャラリー
+└── UserNav.tsx                   # ユーザーメニュー（プランナー用）
+```
+
+### 3.6 ライブラリ・ユーティリティ (`lib/`)
+
+```
+lib/
+├── types/
+│   ├── admin.ts                  # 管理画面用型定義（Guest, Wedding, TableLayout, SeatingPlan）
+│   └── notifications.ts         # 通知システムの型定義
+│
+├── constants/
+│   ├── venues.ts                 # 会場情報の定数（VENUE_INFO, getVenueInfo）
+│   └── external.ts               # 外部サービス連携定数
+│
+├── data/
+│   └── notifications.ts         # 通知データの初期データ（モック）
+│
+├── services/
+│   └── notificationService.ts   # 通知サービスのRepository層
+│
+├── hooks/
+│   └── useNotifications.ts       # 通知管理カスタムフック（ViewModel層）
+│
+├── utils/
+│   ├── dateFormatter.ts          # 日付フォーマットユーティリティ
+│   ├── notificationStyle.tsx     # 通知スタイルの設定
+│   └── cn.ts                     # className結合ユーティリティ
+│
+└── contexts/
+    └── NotificationContext.tsx   # 通知Context（Provider、useNotification）
 ```
 
 ---
@@ -317,23 +986,40 @@ components/
 
 ### 4.1 配色
 
-#### メインカラー（Emerald系）
+#### スーパーアドミン（Indigo系）
+- `indigo-50`, `indigo-100`, `indigo-200`: 背景・ボーダー
+- `indigo-500`, `indigo-600`, `indigo-700`, `indigo-800`: アクセント・ボタン・サイドバー
+- `indigo-900`: テキスト
+
+#### プランナー管理画面（Emerald系）
+- `emerald-50`, `emerald-100`, `emerald-200`: 背景・ボーダー
+- `emerald-400`, `emerald-500`, `emerald-600`: アクセント・ボタン
+- `emerald-700`, `emerald-800`, `emerald-900`: サイドバー・テキスト
+- `teal-500`, `teal-600`, `teal-900`: グラデーション・サイドバー
+
+#### 新郎新婦側（Emerald系）
 - `emerald-50`, `emerald-100`, `emerald-200`: 背景・ボーダー
 - `emerald-400`, `emerald-500`, `emerald-600`: アクセント・ボタン
 - `emerald-700`, `emerald-800`: テキスト
-
-#### セカンダリカラー（Teal系）
 - `teal-500`, `teal-600`: グラデーション（ボタン）
 
 #### 警告色（Orange系）
 - `orange-100`, `orange-200`: コンプライアンスモーダルの背景
-- `orange-700`, `orange-800`: 警告テキスト
+- `orange-400`, `orange-500`, `orange-600`, `orange-700`, `orange-800`: 警告テキスト・アイコン
 
 #### ニュートラル（Gray/Stone系）
 - `gray-50`, `gray-100`: 背景
 - `gray-200`, `gray-300`: ボーダー
 - `gray-600`, `gray-700`, `gray-900`: テキスト
 - `stone-50`, `stone-100`: ゲスト側の背景
+- `stone-200`, `stone-300`: ボーダー
+- `stone-600`, `stone-700`, `stone-800`: テキスト
+
+#### ステータス色
+- **成功**: `green-400`, `green-500`, `green-600`
+- **エラー**: `red-500`, `red-600`
+- **警告**: `yellow-400`, `yellow-500`
+- **情報**: `blue-400`, `blue-500`, `blue-600`
 
 ### 4.2 フォント指定
 
@@ -343,6 +1029,7 @@ style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "He
 
 - システムフォント優先
 - 日本語対応（`Noto Sans JP`）
+- `font-sans`クラスで統一
 
 ### 4.3 モーダル・シートの挙動
 
@@ -357,21 +1044,118 @@ style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "He
 
 ### 4.4 アニメーション
 
-- **framer-motion**: カウントダウン、カード表示、プログレスバー
+- **framer-motion**: カウントダウン、カード表示、プログレスバー、パーティクル
 - **transition**: `transition-all duration-200`
 - **active**: `active:scale-95`（タップフィードバック）
+- **hover**: `hover:shadow-md`（ホバー時のシャドウ変化）
 
 ### 4.5 レスポンシブ設計
 
 - **モバイルファースト**: 基本スタイルはモバイル、`md:` でPC対応
 - **ブレークポイント**: `md` (768px)
-- **コンテナ**: `max-w-md mx-auto`（モバイル）、`max-w-4xl`（PC）
+- **コンテナ**: `max-w-md mx-auto`（モバイル）、`max-w-4xl`（PC）、`max-w-7xl`（管理画面）
+
+### 4.6 アイコン
+
+- **lucide-react**: 主要なアイコンライブラリ
+- **インラインSVG**: 一部のコンポーネントでインラインSVGを使用（カスタムアイコン）
 
 ---
 
 ## 5. データの扱い
 
 ### 5.1 モックデータの場所
+
+#### スーパーアドミン
+
+**`app/admin/page.tsx`**:
+```typescript
+const MOCK_VENUES: Venue[] = [
+  {
+    id: 'v_001',
+    name: 'グランドホテル東京',
+    code: 'grand-hotel-tokyo',
+    plan: 'PREMIUM',
+    status: 'ACTIVE',
+    // ...
+  },
+];
+```
+
+**`app/admin/venues/page.tsx`**:
+```typescript
+const INITIAL_VENUES: Venue[] = [
+  // 会場一覧データ
+];
+```
+
+**`app/admin/venues/[id]/page.tsx`**:
+```typescript
+const getVenueById = (id: string): VenueDetail | null => {
+  const venues: Record<string, VenueDetail> = {
+    'v_001': { /* 会場詳細データ */ },
+  };
+  return venues[id] || null;
+};
+
+const getActivityLogs = (venueId: string): ActivityLog[] => {
+  return [/* アクティビティログ */];
+};
+```
+
+**`app/admin/announcements/page.tsx`**:
+```typescript
+const INITIAL_ANNOUNCEMENTS: Announcement[] = [
+  // お知らせデータ
+];
+```
+
+**`app/admin/ads/page.tsx`**:
+```typescript
+const MONTHLY_REVENUE_DATA = [/* 月別収益データ */];
+const VENUE_PERFORMANCE_DATA: VenuePerformance[] = [/* 会場別パフォーマンスデータ */];
+```
+
+**`app/admin/team/page.tsx`**:
+```typescript
+const INITIAL_MEMBERS: TeamMember[] = [
+  // チームメンバーデータ
+];
+```
+
+#### プランナー管理画面
+
+**`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`**:
+```typescript
+const DUMMY_WEDDINGS: Wedding[] = [
+  // 挙式一覧データ
+];
+```
+
+**`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`**:
+```typescript
+const getWeddingById = (id: number): Wedding | null => {
+  const weddings: Wedding[] = [
+    // 挙式詳細データ
+  ];
+  return weddings.find(w => w.id === id) || null;
+};
+```
+
+**`app/(dashboard)/dashboard/(main)/[venueId]/_components/FeedbackFeed.tsx`**:
+```typescript
+async function fetchFeedbacks(venueId: string): Promise<FeedbackWithWedding[]> {
+  // モックデータ
+  return [/* フィードバックデータ */];
+}
+```
+
+**`lib/data/notifications.ts`**:
+```typescript
+export const INITIAL_NOTIFICATIONS: Notification[] = [
+  // 通知データ
+];
+```
 
 #### 新郎新婦側
 
@@ -387,11 +1171,7 @@ const MOCK_WEDDING = {
 ```typescript
 const MOCK_WEDDING = {
   weddingDate: new Date('2026-03-15'),
-  tables: [
-    { id: 'table-a', name: 'A', isCompleted: true },
-    { id: 'table-b', name: 'B', isCompleted: true },
-    { id: 'table-c', name: 'C', isCompleted: false },
-  ],
+  tables: [/* 卓データ */],
 };
 ```
 
@@ -399,10 +1179,7 @@ const MOCK_WEDDING = {
 ```typescript
 const MOCK_WEDDING = {
   weddingDate: new Date('2026-03-15'),
-  tables: [
-    { id: 'table-a', name: 'A', message: '...', photoUrl: '...', photos: [], isSkipped: false, isCompleted: true },
-    // ...
-  ],
+  tables: [/* 卓詳細データ */],
 };
 ```
 
@@ -424,6 +1201,16 @@ const VENUE_INFO = {
   name: '表参道テラス',
   coverImage: 'https://picsum.photos/800/600?random=venue',
   date: '2026.01.20',
+  enableLineUnlock: false, // 会場設定による機能制限フラグ
+};
+```
+
+**`lib/constants/venues.ts`**:
+```typescript
+export const VENUE_INFO: Record<string, VenueInfo> = {
+  'venue-001': { id: 'venue-001', name: '会場A' },
+  'venue-002': { id: 'venue-002', name: '会場B' },
+  'venue-003': { id: 'venue-003', name: '会場C' },
 };
 ```
 
@@ -434,17 +1221,77 @@ const VENUE_INFO = {
 - 実際のAPI呼び出しは未実装
 - `setTimeout` でアップロード処理をシミュレート
 - コメントに「実際のAPI呼び出しに置き換える」と記載
+- `lib/services/notificationService.ts` にAPI呼び出しの構造は定義されているが、実際の実装はモック
 
 ### 5.3 localStorage使用箇所
 
 - **レビュー完了状態**: `wedding_app_has_reviewed_${coupleId}`
 - **用途**: レビュー画面の重複表示を防止
 
+### 5.4 Context API使用箇所
+
+- **通知管理**: `lib/contexts/NotificationContext.tsx`
+- **用途**: プランナー管理画面での通知状態管理、未読件数の計算
+
 ---
 
-## 6. 引き継ぎ事項 / NEXT STEP
+## 6. アーキテクチャパターンと設計思想
 
-### 6.1 TODOコメント（コード内に存在）
+### 6.1 通知システムのアーキテクチャパターン
+
+**実装場所**: `app/(dashboard)/dashboard/(main)/[venueId]/notifications/page.tsx`
+
+**パターン**: View-ViewModel-Repository パターン
+
+- **View層**: `VenueNotificationsPage`（表示のみに専念）
+- **ViewModel層**: `useNotification`フック（`lib/hooks/useNotifications.ts`）
+  - 状態管理、ロジック管理
+  - オプティミスティックUI更新
+- **Repository層**: `notificationService`（`lib/services/notificationService.ts`）
+  - データ取得・更新の抽象化
+  - API呼び出しの構造定義
+
+**メリット**:
+- テスト容易性の向上
+- 保守性の向上
+- ロジックの再利用性
+
+### 6.2 コンポーネント設計
+
+**原則**: 単一責任の原則
+
+- **表示専用コンポーネント**: `NotificationHeader`, `NotificationList`, `NotificationCard`
+- **ロジック分離**: カスタムフック（`useNotification`）に委譲
+- **再利用性**: `ReviewSettings`コンポーネント（設定ページで使用）
+
+### 6.3 状態管理
+
+**原則**: 最小限の状態管理
+
+- **ローカル状態**: `useState`（コンポーネント内の状態）
+- **グローバル状態**: Context API（通知状態）
+- **サーバー状態**: 将来的にSWRやReact Queryを使用予定（コメントに記載）
+
+### 6.4 エラーハンドリング
+
+**原則**: ユーザーフレンドリーなエラー表示
+
+- **トースト通知**: `sonner`を使用
+- **バリデーション**: リアルタイムバリデーション（URL、メールアドレス）
+- **エラー状態の管理**: `useState`でエラー状態を管理
+
+### 6.5 パフォーマンス最適化
+
+**実装箇所**:
+- **メモ化**: `useMemo`（未読件数の計算、変更検知）
+- **コールバックメモ化**: `useCallback`（イベントハンドラ）
+- **レイジーローディング**: `Suspense`（通知ページ）
+
+---
+
+## 7. 引き継ぎ事項 / NEXT STEP
+
+### 7.1 TODOコメント（コード内に存在）
 
 #### `app/couple/settings/page.tsx`
 ```typescript
@@ -464,34 +1311,93 @@ const LINE_ID = '@あなたのLINE_ID'; // TODO: .envから取得するように
 const LINE_ADD_FRIEND_URL = 'https://line.me/R/ti/p/@your_line_id'; // TODO: 本番環境ではここに実際のLINE公式アカウントのURLを設定する
 ```
 
-### 6.2 次の開発者がまず着手すべきタスク
+#### `app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`
+```typescript
+// TODO: ドラッグ&ドロップによるゲスト割り当て
+// TODO: QRコードダウンロード機能
+```
+
+#### `app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`
+```typescript
+// TODO: 挙式作成機能
+```
+
+#### `app/(dashboard)/layout.tsx`
+```typescript
+// TODO: 認証チェック（将来実装）
+// const session = await getSession();
+// if (!session) redirect('/dashboard/login');
+```
+
+#### `lib/hooks/useNotifications.ts`
+```typescript
+// TODO: SWRやReact Queryを使用したキャッシュ・再検証
+// TODO: リアルタイム更新（WebSocket）
+// TODO: オプティミスティックUI更新
+```
+
+### 7.2 次の開発者がまず着手すべきタスク
 
 1. **API連携の実装**
    - モックデータを実際のAPI呼び出しに置き換える
    - エラーハンドリングの追加
    - ローディング状態の改善
+   - `lib/services/notificationService.ts`の実装
 
 2. **認証・認可の実装**
    - `coupleId` の実際の取得方法
    - セッション管理
+   - ロールベースアクセス制御（RBAC）
+   - `app/(dashboard)/layout.tsx`の認証チェック実装
 
 3. **環境変数の設定**
    - LINE ID、Google Maps URL などの外部サービス連携情報を `.env` に移動
+   - 会場設定（`enableLineUnlock`）をデータベースから取得
 
 4. **データベース設計**
    - Prismaスキーマ（`schema.prisma`）の確認と更新
    - 実際のデータモデルとの整合性確認
+   - マイグレーションの実行
 
 5. **テストの追加**
    - ユニットテスト（特にビジネスロジック）
    - E2Eテスト（主要フロー）
+   - 通知システムのテスト（View-ViewModel-Repositoryパターン）
 
-### 6.3 注意事項
+6. **パフォーマンス最適化**
+   - SWRやReact Queryの導入（通知システム、挙式一覧など）
+   - 画像最適化（Next.js Imageコンポーネントの使用）
+   - コード分割（動的インポート）
+
+7. **機能追加**
+   - 挙式作成機能（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`）
+   - ドラッグ&ドロップによるゲスト割り当て（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`）
+   - QRコードダウンロード機能（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`）
+   - リアルタイム通知（WebSocket）
+
+### 7.3 注意事項
 
 - **コードベースを正解として扱う**: このドキュメントは実際のコードに基づいて作成されています。会話の履歴ではなく、コードが Single Source of Truth です。
-- **モバイルファースト**: PC表示は最低限の考慮で問題ありません。
-- **デザインの一貫性**: Emerald系の配色と `text-balance` などの最適化を維持してください。
+- **モバイルファースト**: PC表示は最低限の考慮で問題ありません（管理画面はPC対応）。
+- **デザインの一貫性**: 
+  - スーパーアドミン: Indigo系
+  - プランナー管理画面: Emerald系
+  - 新郎新婦側: Emerald系
+  - ゲスト側: Stone系
+- **アーキテクチャパターンの維持**: 通知システムのView-ViewModel-Repositoryパターンを他の機能にも適用することを推奨します。
+- **型安全性**: TypeScriptの型定義を活用し、型安全性を維持してください。
+
+### 7.4 既知の制限事項
+
+1. **認証システム**: 現在は簡易認証（`app/page.tsx`）のみ実装。本番環境では適切な認証システム（NextAuth.js等）の実装が必要。
+2. **データ永続化**: 現在はすべてメモリ内の状態管理。データベースとの連携が必要。
+3. **画像ストレージ**: 現在はモックURLを使用。実際の画像ストレージ（S3等）との連携が必要。
+4. **リアルタイム更新**: 通知システムなど、リアルタイム更新が必要な機能は未実装。
+5. **エラーハンドリング**: 一部の機能でエラーハンドリングが不完全。
 
 ---
 
 **このドキュメントは、実際のコードベース（2026年1月時点）に基づいて作成されました。**
+
+**最終更新者**: AI Assistant  
+**最終更新日**: 2026年1月

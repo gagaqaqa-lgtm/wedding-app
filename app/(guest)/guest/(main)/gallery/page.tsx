@@ -22,6 +22,7 @@ const VENUE_INFO = {
   name: '表参道テラス',
   coverImage: 'https://picsum.photos/800/600?random=venue',
   date: '2026.01.20',
+  enableLineUnlock: false, // LINE連携による投稿制限解除機能の有効/無効（テスト用: false で無効、true で有効）
 };
 
 // コンフェッティの色
@@ -349,8 +350,17 @@ function GalleryContent() {
 
     // 既に上限に達している場合、または新規アップロードで上限を超える場合
     if ((uploadedCount >= UPLOAD_LIMIT || newUploadedCount > UPLOAD_LIMIT) && !isLineConnected) {
-      // 制限解除モーダルを表示
-      setShowLimitModal(true);
+      // 会場設定による分岐
+      if (VENUE_INFO.enableLineUnlock) {
+        // パターンA: LINE連携機能が有効な場合、制限解除モーダルを表示
+        setShowLimitModal(true);
+      } else {
+        // パターンB: LINE連携機能が無効な場合、エラートーストを表示
+        toast.error('投稿枚数の上限に達しました', {
+          description: `投稿可能な枚数は${UPLOAD_LIMIT}枚までです。これ以上はアップロードできません。`,
+          duration: 4000,
+        });
+      }
       // ファイル入力のリセット
       event.target.value = '';
       return;
@@ -1114,47 +1124,49 @@ function GalleryContent() {
         </DialogContent>
       </Dialog>
 
-      {/* 制限解除モーダル */}
-      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-bold text-stone-800 font-serif">
-              写真の投稿上限（5枚）に達しました
-            </DialogTitle>
-            <DialogDescription className="text-center text-base text-stone-600 mt-2 font-serif">
-              もっと写真をアップロードするには、LINEで友達追加をして無制限モードを解放してください✨
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-3 sm:gap-2 mt-4">
-            <button
-              onClick={() => setShowLimitModal(false)}
-              className="w-full sm:w-auto px-4 py-2 text-stone-600 hover:text-stone-800 font-medium rounded-lg transition-colors font-serif"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={() => {
-                // LINE公式アカウントの友達追加URLを別タブで開く（ソフトゲート）
-                window.open(LINE_ADD_FRIEND_URL, '_blank', 'noopener,noreferrer');
-                
-                // 即座に制限を解除（無条件で連携済みにする）
-                setIsLineConnected(true);
-                setShowLimitModal(false);
-                
-                // フィードバック: トースト通知を表示
-                toast.success('無制限モードが解放されました！🎉', {
-                  description: 'これからは何枚でもアップロードできます✨',
-                  duration: 4000,
-                });
-              }}
-              className="w-full sm:w-auto px-6 py-2 bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold rounded-lg shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 font-serif"
-            >
-              <MessageCircle className="w-5 h-5" />
-              LINE友達追加で無制限にする
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 制限解除モーダル（LINE連携機能が有効な場合のみ表示） */}
+      {VENUE_INFO.enableLineUnlock && (
+        <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl font-bold text-stone-800 font-serif">
+                写真の投稿上限（5枚）に達しました
+              </DialogTitle>
+              <DialogDescription className="text-center text-base text-stone-600 mt-2 font-serif">
+                もっと写真をアップロードするには、LINEで友達追加をして無制限モードを解放してください✨
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col sm:flex-row gap-3 sm:gap-2 mt-4">
+              <button
+                onClick={() => setShowLimitModal(false)}
+                className="w-full sm:w-auto px-4 py-2 text-stone-600 hover:text-stone-800 font-medium rounded-lg transition-colors font-serif"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => {
+                  // LINE公式アカウントの友達追加URLを別タブで開く（ソフトゲート）
+                  window.open(LINE_ADD_FRIEND_URL, '_blank', 'noopener,noreferrer');
+                  
+                  // 即座に制限を解除（無条件で連携済みにする）
+                  setIsLineConnected(true);
+                  setShowLimitModal(false);
+                  
+                  // フィードバック: トースト通知を表示
+                  toast.success('無制限モードが解放されました！🎉', {
+                    description: 'これからは何枚でもアップロードできます✨',
+                    duration: 4000,
+                  });
+                }}
+                className="w-full sm:w-auto px-6 py-2 bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold rounded-lg shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 font-serif"
+              >
+                <MessageCircle className="w-5 h-5" />
+                LINE友達追加で無制限にする
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* メインコンテンツ */}
       {!showOpeningModal && (
@@ -1397,8 +1409,11 @@ function GalleryContent() {
                           : `残り投稿可能数: ${Math.max(0, 5 - uploadedCount)}枚`
                         }
                       </span>
-                      {uploadedCount >= 5 && (
+                      {uploadedCount >= 5 && VENUE_INFO.enableLineUnlock && (
                         <span className="text-xs text-red-600 font-serif font-bold">⚠️ LINEで無制限化</span>
+                      )}
+                      {uploadedCount >= 5 && !VENUE_INFO.enableLineUnlock && (
+                        <span className="text-xs text-red-600 font-serif font-bold">⚠️ 上限到達</span>
                       )}
                     </div>
                   )}
@@ -1529,8 +1544,8 @@ function GalleryContent() {
           {activeTab === 'table' && (
             <footer className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200/50 shadow-2xl pb-[env(safe-area-inset-bottom)] z-[9997]">
               <div className="px-4 py-4">
-                {/* 投稿上限到達時: LINE連携ボタンに変化 */}
-                {uploadedCount >= 5 && !isLineConnected ? (
+                {/* 投稿上限到達時: LINE連携ボタンに変化（会場設定で有効な場合のみ） */}
+                {uploadedCount >= 5 && !isLineConnected && VENUE_INFO.enableLineUnlock ? (
                   <motion.button
                     type="button"
                     onClick={() => {
@@ -1553,6 +1568,15 @@ function GalleryContent() {
                     <MessageCircle className="w-6 h-6" />
                     <span className="font-semibold">LINE連携で無制限にする</span>
                   </motion.button>
+                ) : uploadedCount >= 5 && !isLineConnected && !VENUE_INFO.enableLineUnlock ? (
+                  /* 上限到達時（LINE連携機能無効）: 無効化されたアップロードボタン */
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full bg-gray-300 text-gray-600 rounded-2xl py-6 px-8 font-semibold cursor-not-allowed flex items-center justify-center gap-3 font-shippori text-xl"
+                  >
+                    <span className="font-semibold">投稿上限に達しました（5枚）</span>
+                  </button>
                 ) : (
                   /* 通常時: アップロードボタン */
                   <label className="block w-full">
