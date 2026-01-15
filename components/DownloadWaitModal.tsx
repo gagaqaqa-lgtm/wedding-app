@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, ExternalLink } from 'lucide-react';
+import { Loader2, ExternalLink, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils/cn';
 
 interface DownloadWaitModalProps {
   open: boolean;
@@ -88,9 +89,32 @@ export function DownloadWaitModal({
     }
   };
 
+  const handleClose = () => {
+    // 明示的に閉じる処理
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto z-[150]">
+        {/* 明示的な閉じるボタン（右上） */}
+        <button
+          onClick={handleClose}
+          className={cn(
+            "absolute top-4 right-4 z-50",
+            "p-2 rounded-full",
+            "bg-white/90 hover:bg-white",
+            "text-gray-600 hover:text-gray-900",
+            "transition-all duration-200",
+            "shadow-md hover:shadow-lg",
+            "active:scale-95",
+            "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+          )}
+          aria-label="閉じる"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         <DialogHeader>
           <DialogTitle className="text-center text-xl font-bold text-gray-900 font-serif flex items-center justify-center gap-2">
             <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
@@ -166,6 +190,23 @@ export function DownloadWaitModal({
           <p className="text-center text-sm text-gray-500 font-serif">
             準備が完了すると自動的にダウンロードが始まります
           </p>
+
+          {/* 閉じるボタン（下部にも追加） */}
+          <div className="pt-4 border-t border-gray-200">
+            <button
+              onClick={handleClose}
+              className={cn(
+                "w-full py-3 px-4 rounded-lg",
+                "bg-gray-100 hover:bg-gray-200",
+                "text-gray-700 font-semibold text-sm",
+                "transition-all duration-200",
+                "active:scale-95",
+                "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+              )}
+            >
+              キャンセル
+            </button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

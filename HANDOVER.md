@@ -1,1403 +1,1263 @@
-# Handover Document: Wedding Photo App (Complete System Overview)
+# Wedding Photo Sharing App - Handover Document
 
-> **最終更新**: 2026年1月（コードベース完全分析に基づく）  
-> **対象読者**: 新規開発者、AIアシスタント、プロジェクト引き継ぎ担当者
+> **最終更新日**: 2024年12月  
+> **対象読者**: バックエンドエンジニア、新規開発者  
+> **重要**: このドキュメントは**実際に存在するコード**のみを正解として記述しています。実装されていない機能は「未実装」と明記しています。
 
 ---
 
 ## 📋 目次
 
-1. [システム概要 & アーキテクチャ](#1-システム概要--アーキテクチャ)
-2. [現在の実装機能（Code Analysis）](#2-現在の実装機能code-analysis)
-   - [2.1 スーパーアドミン機能 (`app/admin/`)](#21-スーパーアドミン機能-appadmin)
-   - [2.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)](#22-プランナー管理画面-appdashboarddashboard)
-   - [2.3 新郎新婦側機能 (`app/couple/`)](#23-新郎新婦側機能-appcouple)
-   - [2.4 ゲスト側機能 (`app/(guest)/guest/`)](#24-ゲスト側機能-appguestguest)
-3. [ディレクトリ・ファイル構成図](#3-ディレクトリファイル構成図)
-4. [UI/デザインガイドライン（現状の実装に基づく）](#4-uideザインガイドライン現状の実装に基づく)
-5. [データの扱い](#5-データの扱い)
-6. [アーキテクチャパターンと設計思想](#6-アーキテクチャパターンと設計思想)
-7. [引き継ぎ事項 / NEXT STEP](#7-引き継ぎ事項--next-step)
+1. [プロジェクト概要](#1-プロジェクト概要)
+2. [アーキテクチャ & ディレクトリ構造](#2-アーキテクチャ--ディレクトリ構造)
+3. [データモデル & スキーマ](#3-データモデル--スキーマ)
+4. [主要機能のロジック解説](#4-主要機能のロジック解説)
+5. [バックエンド開発者への実装ガイド](#5-バックエンド開発者への実装ガイド)
+6. [環境変数 & 設定](#6-環境変数--設定)
+7. [開発環境セットアップ](#7-開発環境セットアップ)
 
 ---
 
-## 1. システム概要 & アーキテクチャ
+## 1. プロジェクト概要
 
-### 1.1 プロジェクトの目的
+### 1.1 アプリケーションの目的
 
-結婚式の写真共有・演出プラットフォーム。**4つの主要なユーザーロール**を持つマルチテナントシステム：
+結婚式の写真共有プラットフォーム。ゲストが写真をアップロードし、新郎新婦が管理・閲覧できるシステムです。
 
-1. **スーパーアドミン**: システム全体の管理、会場契約管理、広告収益管理
-2. **プランナー（会場管理者）**: 会場ごとの挙式管理、ゲスト管理、設定管理
-3. **新郎新婦**: 卓ごとの写真・メッセージ設定、ゲスト写真の閲覧・ダウンロード
-4. **ゲスト**: 写真アップロード、アンケート回答、写真閲覧
+**主要な価値提案:**
+- **ゲスト参加型演出**: ゲストが写真をアップロードして、リアルタイムで思い出を共有
+- **卓ごとのアルバム**: 新郎新婦が各卓にメッセージと写真を設定し、ゲストがその卓のアルバムを閲覧
+- **レビューゲート機能**: ゲストがレビューを完了することでギャラリーへのアクセスが解除される仕組み
 
-### 1.2 ターゲットデバイス
+### 1.2 ユーザーロール
 
-**モバイルファースト（スマートフォン特化）**
-- ユーザーのほぼ100%がスマートフォン（iPhone SE〜Pro Max相当）でアクセス
-- PC表示の考慮は最低限（管理画面はPC対応）
-- `dvh` (Dynamic Viewport Height) を使用してブラウザバーの影響を回避
-- タップ領域は44px以上を確保
+`lib/types/schema.ts` で定義されているユーザーロール:
 
-### 1.3 Next.js App Router構成（完全版）
-
-```
-app/
-├── admin/                        # スーパーアドミン機能
-│   ├── layout.tsx                # サイドバーナビゲーション（Indigo系）
-│   ├── page.tsx                  # ダッシュボード（統計、会場一覧）
-│   ├── venues/                   # 会場管理
-│   │   ├── page.tsx              # 会場一覧（CRUD、検索、フィルタ）
-│   │   ├── [id]/                 # 会場詳細
-│   │   │   ├── page.tsx          # 会場詳細（統計、アカウント管理、アクティビティログ）
-│   │   │   └── _components/
-│   │   │       └── AddAccountDialog.tsx
-│   │   └── _components/
-│   │       └── CreateVenueDialog.tsx
-│   ├── announcements/            # お知らせ管理
-│   │   ├── page.tsx              # お知らせ一覧（CRUD、優先度、配信状態）
-│   │   └── _components/
-│   │       └── CreateAnnouncementDialog.tsx
-│   ├── ads/                      # 広告収益管理
-│   │   └── page.tsx              # 収益ダッシュボード（KPI、グラフ、会場別パフォーマンス）
-│   ├── team/                     # チーム管理
-│   │   ├── page.tsx              # メンバー一覧（招待、権限管理）
-│   │   └── _components/
-│   │       └── InviteMemberDialog.tsx
-│   └── settings/                 # 設定
-│       └── page.tsx
-│
-├── (dashboard)/                  # プランナー管理画面（Route Group）
-│   ├── layout.tsx                # 共通レイアウト（認証チェック用）
-│   └── dashboard/
-│       ├── (auth)/               # 認証関連（Route Group）
-│       │   └── login/
-│       │       └── page.tsx      # ログインページ
-│       └── (main)/               # メイン機能（Route Group）
-│           ├── page.tsx          # リダイレクト（/dashboard/login へ）
-│           └── [venueId]/        # 会場別ダッシュボード
-│               ├── layout.tsx    # サイドバーナビゲーション（Emerald系）、NotificationProvider
-│               ├── page.tsx      # ダッシュボード（メニューカード、最新お知らせ）
-│               ├── weddings/      # 挙式管理
-│               │   ├── page.tsx  # 挙式一覧（日付色分け、ロック状態、検索）
-│               │   └── [id]/
-│               │       ├── page.tsx  # 挙式詳細（卓設定、ゲスト管理、ロック機能）
-│               │       └── _components/
-│               │           └── FeedbackTab.tsx
-│               ├── venues/       # 会場設定
-│               │   └── page.tsx  # 会場一覧（QRコード生成、URL共有）
-│               ├── accounts/     # アカウント管理
-│               │   └── page.tsx  # アカウント一覧（admin/planner権限）
-│               ├── notifications/  # 通知管理
-│               │   └── page.tsx  # 通知一覧（既読管理、Context API使用）
-│               ├── settings/    # 設定
-│               │   ├── page.tsx  # 設定ページ（Google Maps、LINE連携、口コミ設定）
-│               │   └── _components/
-│               │       └── ReviewSettings.tsx
-│               └── _components/
-│                   └── FeedbackFeed.tsx
-│
-├── couple/                       # 新郎新婦側機能
-│   ├── layout.tsx                # 共通レイアウト（ヒーローセクション、フッターナビ）
-│   ├── page.tsx                  # ホーム画面（STEP 1, 2の進捗表示）
-│   ├── tables/                   # 卓設定専用ページ
-│   │   └── page.tsx              # 卓一覧と詳細設定
-│   ├── gallery/                   # 写真ギャラリー
-│   │   └── page.tsx              # 写真閲覧・ダウンロード
-│   ├── login/                    # ログイン
-│   ├── photos/                   # （存在するが未確認）
-│   └── settings/                 # 設定
-│
-├── (guest)/                      # ゲスト側機能（Route Group）
-│   ├── layout.tsx                # ゲスト共通レイアウト
-│   └── guest/
-│       ├── (entry)/              # エントリーページ（Route Group）
-│       │   └── page.tsx          # パスコード入力画面
-│       ├── (main)/               # メイン機能（Route Group）
-│       │   └── gallery/          # 写真ギャラリー・アップロード
-│       │       └── page.tsx      # ゲストギャラリー
-│       └── (onboarding)/         # オンボーディング（Route Group）
-│           └── survey/           # アンケート
-│               └── page.tsx      # 評価・フィードバック
-│
-└── layout.tsx                    # ルートレイアウト
+```typescript
+type UserRole = 
+  | 'SUPER_ADMIN'      // スーパーアドミン（システム全体の管理）
+  | 'VENUE_ADMIN'      // 会場管理者（会場ごとの管理）
+  | 'PLANNER'          // プランナー（挙式の管理）
+  | 'COUPLE'           // 新郎新婦（自分の挙式の管理）
+  | 'GUEST';           // ゲスト（写真のアップロード・閲覧）
 ```
 
-### 1.4 主要なページの役割分担
+**各ロールのアクセス範囲:**
 
-#### `/admin` (スーパーアドミンダッシュボード)
-- **役割**: システム全体の監視・管理
-- **機能**:
-  - 総契約会場数、今月の新規契約、稼働率、推定収益のKPI表示
-  - 最近登録された会場の一覧表示
-  - 会場管理、お知らせ管理、広告収益管理へのナビゲーション
+| ロール | アクセス可能なルート | 主な機能 |
+|--------|---------------------|----------|
+| `GUEST` | `/guest/*` | 写真アップロード、ギャラリー閲覧、レビュー送信 |
+| `COUPLE` | `/couple/*` | 卓設定、写真管理、ギャラリー閲覧 |
+| `PLANNER` | `/dashboard/*` | 挙式管理、ゲスト管理、フィードバック確認 |
+| `VENUE_ADMIN` | `/dashboard/[venueId]/*` | 会場設定、アカウント管理 |
+| `SUPER_ADMIN` | `/admin/*` | システム全体の管理、会場管理 |
 
-#### `/admin/venues` (会場管理)
-- **役割**: 会場のCRUD操作、契約プラン管理
-- **機能**:
-  - 会場一覧表示（検索、フィルタ、ソート）
-  - 会場作成・編集・削除
-  - プラン（LIGHT/STANDARD/PREMIUM）とステータス（ACTIVE/SUSPENDED/ONBOARDING）管理
-  - 会場詳細ページへのリンク
+### 1.3 技術スタック
 
-#### `/admin/venues/[id]` (会場詳細)
-- **役割**: 個別会場の詳細管理
-- **機能**:
-  - 統計情報（今月の挙式数、ゲスト数、ストレージ使用量、広告収益）
-  - アカウント管理（追加・削除、権限設定）
-  - アクティビティログ（ログイン、挙式作成、写真アップロード、ゲスト登録）
-  - タブUI（概要、アカウント、アクティビティ）
+**フロントエンド:**
+- **Next.js 15.1.0** (App Router)
+- **React 18.3.1**
+- **TypeScript 5.5.0** (strict mode)
+- **Tailwind CSS 3.4.4** (ユーティリティファースト)
+- **Shadcn/ui** (Radix UIベースのコンポーネントライブラリ)
+- **Framer Motion 12.25.0** (アニメーション)
+- **Sonner 2.0.7** (Toast通知)
+- **Canvas Confetti 1.9.4** (パーティクルエフェクト)
+- **JSZip 3.10.1** & **file-saver 2.0.5** (ZIPダウンロード)
+- **React Responsive Masonry 2.1.0** (Masonryレイアウト)
+- **Zod 4.3.5** (バリデーション)
+- **SWR 2.3.8** (データフェッチング、一部で使用)
+- **Zustand 5.0.9** (状態管理、一部で使用)
 
-#### `/admin/announcements` (お知らせ管理)
-- **役割**: システム全体へのお知らせ配信
-- **機能**:
-  - お知らせ一覧（優先度、配信状態、配信日時）
-  - お知らせ作成・編集・削除
-  - 優先度（NORMAL/HIGH）とステータス（SENT/DRAFT）管理
-
-#### `/admin/ads` (広告収益管理)
-- **役割**: 広告収益の監視・分析
-- **機能**:
-  - KPIカード（総収益、インプレッション、クリック率、CTR）
-  - 月別収益推移グラフ（CSSベースの棒グラフ）
-  - 会場別パフォーマンスランキング（インプレッション、収益）
-
-#### `/admin/team` (チーム管理)
-- **役割**: スーパーアドミンチームのメンバー管理
-- **機能**:
-  - メンバー一覧（OWNER/MEMBER権限、ACTIVE/INVITEDステータス）
-  - メンバー招待（メール送信）
-  - メンバー削除
-
-#### `/dashboard/[venueId]` (プランナーダッシュボード)
-- **役割**: 会場ごとの管理画面ホーム
-- **機能**:
-  - メニューカード（挙式管理、会場設定、システム設定）
-  - 最新のお知らせバナー（未読優先表示、Context API連携）
-  - フィードバックフィード（最新3件、挙式情報付き）
-
-#### `/dashboard/[venueId]/weddings` (挙式管理)
-- **役割**: 挙式の一覧・管理
-- **機能**:
-  - 挙式一覧（日付色分け：土曜=青、日曜=赤、平日=グレー）
-  - 検索・フィルタ（日付範囲、プランナー名、ロック状態）
-  - ロック機能（データ確定、編集不可）
-  - 挙式詳細ページへのリンク
-
-#### `/dashboard/[venueId]/weddings/[id]` (挙式詳細)
-- **役割**: 個別挙式の詳細管理
-- **機能**:
-  - 挙式基本情報（日付、時間、会場名、プランナー名、ゲスト数）
-  - 新郎新婦情報（姓名、フルネーム表示）
-  - 卓設定（デフォルト12卓、命名パターン、ゲスト割り当て）
-  - ロック機能（挙式データの確定）
-  - フィードバックタブ（新郎新婦・ゲストからのフィードバック）
-  - QRコード生成・URL共有
-
-#### `/dashboard/[venueId]/notifications` (通知管理)
-- **役割**: 会場向け通知の一覧・既読管理
-- **機能**:
-  - 通知一覧表示（タイプ別アイコン、既読/未読状態）
-  - 既読管理（Context API使用、オプティミスティックUI更新）
-  - 未読件数バッジ表示
-  - 相対時間表示（「X分前」「X時間前」「X日前」）
-
-#### `/dashboard/[venueId]/settings` (設定)
-- **役割**: 会場の各種設定管理
-- **機能**:
-  - Google MapsレビューURL設定
-  - LINE公式アカウントURL設定
-  - 表示会場名設定
-  - 口コミ収集設定（`ReviewSettings`コンポーネント）:
-    - 新郎新婦向け設定（URL、評価閾値）
-    - ゲスト向け設定（URL、評価閾値）
-    - 通知メールアドレス設定
-  - URLバリデーション、メールアドレスバリデーション
-  - 変更検知（保存ボタンの有効/無効制御）
-
-#### `/couple` (Home)
-- **役割**: 全体進捗の確認
-- **機能**:
-  - STEP 1: プロフィール・挨拶設定（全員へのメッセージと写真）
-  - STEP 2: ゲスト・卓設定（`/couple/tables` へのナビゲーション）
-  - 両方完了時の「準備完了」バッジ表示
-
-#### `/couple/tables` (卓設定)
-- **役割**: 卓ごとの詳細設定
-- **機能**:
-  - 進捗状況のプログレスバー表示（完了状況: X / Y 卓）
-  - 卓カードのグリッド表示（3つの状態を視覚的に区別）
-  - 各卓の写真・メッセージ設定（Sheet UI）
-  - コンプライアンスチェックモーダル（写真アップロード前）
-
-#### `/couple/gallery` (写真ギャラリー)
-- **役割**: ゲストがアップロードした写真の閲覧・ダウンロード
-- **機能**:
-  - 挙式前: ロック画面表示（Pre-Wedding Lock Screen）
-  - 挙式後: 写真グリッド表示、ダウンロード機能
-  - レビューゲート経由のダウンロード（`CoupleReviewGateDrawer`）
-  - 広告表示（`DownloadWaitModal`）
-
-#### `/guest/(entry)` (エントリーページ)
-- **役割**: ゲストの認証・挙式選択
-- **機能**:
-  - 会場名表示（背景画像付き）
-  - 挙式選択（新郎新婦名、時間）
-  - パスコード入力（4桁、数字キーパッド）
-  - 認証成功時のアニメーション（鍵が開く）
-  - 認証失敗時のシェイクアニメーション
-
-#### `/guest/(onboarding)/survey` (アンケート)
-- **役割**: ゲストからの評価・フィードバック収集
-- **機能**:
-  - 星評価（1-5星、ホバーエフェクト）
-  - 評価に応じた分岐:
-    - 高評価（4-5星）: Googleマップレビュー誘導
-    - 低評価（1-3星）: 内部フィードバック（Textarea）
-  - ギャラリーへの遷移
-
-#### `/guest/(main)/gallery` (ゲストギャラリー)
-- **役割**: 写真のアップロード・閲覧
-- **機能**:
-  - オープニングモーダル（会場名、日付、メッセージ）
-  - タブUI（「新郎新婦より」「この卓のアルバム」）
-  - 写真アップロード（5枚制限、LINE連携で無制限化）
-  - コンプライアンスチェックモーダル
-  - 写真削除機能
-  - 会場設定による機能制限分岐（`enableLineUnlock`フラグ）
+**開発ツール:**
+- **ESLint** (Next.js標準設定)
+- **PostCSS** & **Autoprefixer**
+- **TypeScript** (strict mode)
 
 ---
 
-## 2. 現在の実装機能（Code Analysis）
+## 2. アーキテクチャ & ディレクトリ構造
 
-### 2.1 スーパーアドミン機能 (`app/admin/`)
+### 2.1 Service Repositoryパターンの採用
 
-#### 2.1.1 ダッシュボード (`app/admin/page.tsx`)
+このプロジェクトは**Service Repositoryパターン**を採用しており、UIコンポーネントとデータ取得ロジックを完全に分離しています。
 
-**実装状況**: ✅ 完全実装
+#### 2.1.1 アーキテクチャ図
 
-**主要機能**:
-- **KPIカード**（`MetricCard`コンポーネント）:
-  - 総契約会場数（`Building2`アイコン、Indigo-500）
-  - 今月の新規契約（`TrendingUp`アイコン、Indigo-600）
-  - 稼働率（`Activity`アイコン、Indigo-700）
-  - 今月の推定収益（`DollarSign`アイコン、Indigo-800）
-- **最近登録された会場テーブル**:
-  - 会場名、プラン、登録日、ステータスを表示
-  - 日付フォーマット（`date-fns`、日本語ロケール）
-  - ステータスバッジ（Indigo/Destructive/Warning）
-  - 会場管理ページへのリンク
+```mermaid
+graph TB
+    subgraph "UI Layer (app/)"
+        A[Page Components]
+        B[Layout Components]
+    end
+    
+    subgraph "Service Layer (lib/services/)"
+        C[mock/weddingService.ts]
+        D[mock/venueService.ts]
+        E[mock/photoService.ts]
+        F[mock/guestService.ts]
+        G[api.ts - Legacy]
+    end
+    
+    subgraph "Type Definitions"
+        H[schema.ts]
+    end
+    
+    A --> C
+    A --> D
+    A --> E
+    A --> F
+    B --> C
+    B --> D
+    
+    C --> H
+    D --> H
+    E --> H
+    F --> H
+    
+    style C fill:#e1f5ff
+    style D fill:#e1f5ff
+    style E fill:#e1f5ff
+    style F fill:#e1f5ff
+    style H fill:#fff4e1
+```
 
-**データ構造**:
+#### 2.1.2 疎結合の実現方法
+
+**UIコンポーネントは「データの取得方法」を知りません:**
+
+```typescript
+// ❌ 悪い例（直接MOCKデータを参照）
+const MOCK_WEDDING = { weddingDate: new Date(), ... };
+const daysUntil = calculateDaysUntil(MOCK_WEDDING.weddingDate);
+
+// ✅ 良い例（Service層経由）
+import { getWeddingDate } from '@/lib/services/mock/weddingService';
+
+const [weddingDate, setWeddingDate] = useState<Date | null>(null);
+useEffect(() => {
+  const loadData = async () => {
+    const date = await getWeddingDate(MOCK_WEDDING_ID);
+    setWeddingDate(date);
+  };
+  loadData();
+}, []);
+```
+
+**メリット:**
+1. **バックエンド実装の変更がUIに影響しない**: Service関数の内部実装を変更するだけで、UIコンポーネントは変更不要
+2. **テストが容易**: Service層をモック化して、UIの動作をテストできる
+3. **型安全性**: `schema.ts` で定義された型が強制されるため、型エラーを早期発見できる
+
+### 2.2 ディレクトリ構造
+
+```
+guest-link/
+├── app/                          # Next.js App Router
+│   ├── (auth)/                   # 認証関連（ルートグループ）
+│   │   └── login/
+│   ├── (dashboard)/              # プランナー・会場管理者用（ルートグループ）
+│   │   └── dashboard/
+│   │       ├── (auth)/           # 認証が必要なページ
+│   │       └── (main)/           # 認証後のメインページ
+│   │           └── [venueId]/   # 会場ID動的ルート
+│   ├── (guest)/                  # ゲスト用（ルートグループ）
+│   │   └── guest/
+│   │       ├── (entry)/          # 入口画面（パスコード認証）
+│   │       ├── (onboarding)/     # オンボーディング（レビュー）
+│   │       └── (main)/           # メイン機能（ギャラリー）
+│   ├── admin/                    # スーパーアドミン用
+│   ├── couple/                   # 新郎新婦用
+│   │   ├── page.tsx              # ホーム画面
+│   │   ├── tables/               # 卓設定
+│   │   ├── gallery/              # 写真ギャラリー
+│   │   └── login/                # ログイン
+│   └── layout.tsx                # ルートレイアウト
+│
+├── components/                   # 再利用可能なUIコンポーネント
+│   ├── ui/                       # Shadcn/uiコンポーネント
+│   ├── admin/                    # 管理画面用コンポーネント
+│   ├── guest/                    # ゲスト用コンポーネント
+│   └── ...
+│
+├── lib/
+│   ├── types/
+│   │   └── schema.ts            # 共通型定義（最重要）
+│   ├── services/
+│   │   ├── mock/                 # Mock Service層（バックエンド実装待ち）
+│   │   │   ├── weddingService.ts
+│   │   │   ├── venueService.ts
+│   │   │   ├── photoService.ts
+│   │   │   ├── guestService.ts
+│   │   │   └── index.ts
+│   │   ├── api.ts                # Legacy API層（一部で使用）
+│   │   └── notificationService.ts
+│   ├── constants/                # 定数定義
+│   │   ├── venues.ts
+│   │   └── external.ts
+│   └── utils/                    # ユーティリティ関数
+│
+└── public/                       # 静的ファイル
+```
+
+### 2.3 ルートグループの意図
+
+Next.jsの**Route Groups** `(name)` を使用して、レイアウトと認証境界を分離しています。
+
+| ルートグループ | 目的 | レイアウト |
+|--------------|------|-----------|
+| `(auth)` | 認証が必要なページ | 認証レイアウト |
+| `(dashboard)` | プランナー・会場管理者用 | ダッシュボードレイアウト |
+| `(guest)` | ゲスト用 | ゲストレイアウト |
+| `(entry)` | ゲスト入口（パスコード認証前） | エントリーレイアウト |
+| `(onboarding)` | ゲストオンボーディング（レビュー） | オンボーディングレイアウト |
+| `(main)` | ゲストメイン機能（ギャラリー） | メインレイアウト |
+
+**例: ゲストのフロー**
+
+```
+/guest/(entry)/page.tsx          # パスコード入力
+    ↓ (認証成功)
+/guest/(onboarding)/survey/page.tsx  # レビュー回答
+    ↓ (レビュー完了)
+/guest/(main)/gallery/page.tsx   # ギャラリー閲覧
+```
+
+---
+
+## 3. データモデル & スキーマ
+
+### 3.1 ER図
+
+```mermaid
+erDiagram
+    Venue ||--o{ Wedding : "has"
+    Venue ||--o{ Account : "has"
+    Wedding ||--o{ Table : "has"
+    Wedding ||--o{ Photo : "has"
+    Wedding ||--o{ Guest : "has"
+    Wedding ||--o{ Feedback : "has"
+    Table ||--o{ Photo : "has"
+    Guest ||--o{ Photo : "uploads"
+    Guest ||--o{ Feedback : "submits"
+    
+    Venue {
+        string id PK
+        string name
+        string code
+        VenuePlan plan
+        VenueStatus status
+        string coverImageUrl
+        boolean enableLineUnlock
+        string guestReviewUrl
+        number guestReviewThreshold
+    }
+    
+    Wedding {
+        string id PK
+        string venueId FK
+        string date
+        string time
+        string hall
+        string familyNames
+        string welcomeImageUrl
+        boolean isLocked
+        string lockedAt
+        string lockedBy FK
+    }
+    
+    Table {
+        string id PK
+        string weddingId FK
+        string name
+        string message
+        string photoUrl
+        boolean isCompleted
+        boolean isSkipped
+    }
+    
+    Photo {
+        string id PK
+        string weddingId FK
+        string tableId FK
+        string uploadedBy FK
+        string url
+        PhotoSource source
+        PhotoApprovalStatus approvalStatus
+        boolean isFavorite
+        string uploadedAt
+    }
+    
+    Guest {
+        string id PK
+        string weddingId FK
+        string tableId FK
+        GuestStatus status
+        SurveyStatus surveyStatus
+        AllergyStatus allergyStatus
+        string[] allergies
+    }
+    
+    Feedback {
+        string id PK
+        string weddingId FK
+        string userId FK
+        number rating
+        string content
+        FeedbackSource source
+        string createdAt
+    }
+```
+
+### 3.2 主要エンティティの詳細
+
+#### 3.2.1 Venue (会場)
+
+**ファイル**: `lib/types/schema.ts` (159-212行目)
+
+**重要なフィールド:**
+
 ```typescript
 interface Venue {
   id: string;
   name: string;
-  code: string; // URLに使われる会場コード
-  plan: VenuePlan; // 'LIGHT' | 'STANDARD' | 'PREMIUM'
-  status: VenueStatus; // 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING'
-  lastActiveAt: Date;
-  adminName: string;
-  adminEmail: string;
-  createdAt: Date;
+  code: string;                    // URLに使用される識別子
+  plan: VenuePlan;                 // 'LIGHT' | 'STANDARD' | 'PREMIUM'
+  status: VenueStatus;            // 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING'
+  
+  // 動的設定項目（新規追加）
+  coverImageUrl?: string;          // ゲスト入口画面の背景画像
+  enableLineUnlock?: boolean;      // LINE連携による投稿制限解除機能の有効/無効
+  
+  // レビュー設定
+  guestReviewUrl?: string;         // ゲスト向けレビュー投稿URL
+  guestReviewThreshold?: number;    // 外部誘導する最低星数
+  coupleReviewUrl?: string;         // 新郎新婦向けレビュー投稿URL
+  coupleReviewThreshold?: number;   // 新郎新婦向け外部誘導の最低星数
 }
 ```
 
-**UI/UXのこだわり**:
-- `framer-motion`によるカードのフェードインアニメーション
-- ホバー時のシャドウ変化（`hover:shadow-md`）
-- カラーコードによる視覚的な階層（Indigo-500〜800）
+**使用箇所:**
+- `app/(guest)/guest/(main)/gallery/page.tsx`: `coverImageUrl` を背景画像として使用
+- `app/(guest)/guest/(main)/gallery/page.tsx`: `enableLineUnlock` でアップロード制限ロジックを分岐
 
-#### 2.1.2 会場管理 (`app/admin/venues/page.tsx`)
+#### 3.2.2 Wedding (挙式)
 
-**実装状況**: ✅ 完全実装
+**ファイル**: `lib/types/schema.ts` (232-289行目)
 
-**主要機能**:
-- **検索機能**: 会場名・コード・管理者名で検索
-- **フィルタ機能**: プラン（LIGHT/STANDARD/PREMIUM）、ステータス（ACTIVE/SUSPENDED/ONBOARDING）でフィルタ
-- **ソート機能**: 登録日、最終アクティブ日時でソート
-- **CRUD操作**:
-  - 作成: `CreateVenueDialog`コンポーネント
-  - 編集: ドロップダウンメニューから「編集」
-  - 削除: ドロップダウンメニューから「削除」（確認ダイアログ）
-- **会場詳細ページへのリンク**: テーブル行をクリック
+**重要なフィールド:**
 
-**UI/UXのこだわり**:
-- 検索バーにリアルタイムフィルタリング
-- ドロップダウンメニューによるアクション（編集、削除、ログイン）
-- バッジによる視覚的なステータス表示
-- テーブル行のホバーエフェクト
-
-#### 2.1.3 会場詳細 (`app/admin/venues/[id]/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **統計情報カード**:
-  - 今月の挙式数（`Calendar`アイコン）
-  - 今月のゲスト数（`Users`アイコン）
-  - ストレージ使用量（`HardDrive`アイコン、GB表示）
-  - 今月の広告収益（`DollarSign`アイコン、円表示）
-- **タブUI**（`Tabs`コンポーネント）:
-  - 概要: 基本情報、統計情報
-  - アカウント: アカウント一覧、追加ダイアログ（`AddAccountDialog`）
-  - アクティビティ: アクティビティログ（ログイン、挙式作成、写真アップロード、ゲスト登録）
-- **アカウント管理**:
-  - アカウント追加（名前、メール、権限）
-  - アカウント削除
-  - 権限バッジ（Admin/Planner）
-
-**データ構造**:
-```typescript
-interface VenueDetail extends Venue {
-  monthlyWeddings: number;
-  monthlyGuests: number;
-  storageUsed: number; // GB
-  monthlyAdRevenue: number; // 円
-}
-
-interface ActivityLog {
-  id: string;
-  type: 'login' | 'wedding_created' | 'photo_uploaded' | 'guest_registered';
-  description: string;
-  timestamp: Date;
-}
-```
-
-**UI/UXのこだわり**:
-- タブによる情報の整理
-- アクティビティログの時系列表示
-- アカウント追加時のバリデーション
-
-#### 2.1.4 お知らせ管理 (`app/admin/announcements/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **お知らせ一覧テーブル**:
-  - タイトル、本文、優先度、ステータス、配信日時
-  - 優先度バッジ（重要/通常）
-  - ステータスバッジ（配信済み/下書き）
-- **CRUD操作**:
-  - 作成: `CreateAnnouncementDialog`コンポーネント
-  - 編集: ドロップダウンメニューから「編集」
-  - 削除: ドロップダウンメニューから「削除」（`toast`で確認）
-
-**データ構造**:
-```typescript
-interface Announcement {
-  id: string;
-  title: string;
-  body: string;
-  priority: AnnouncementPriority; // 'NORMAL' | 'HIGH'
-  status: AnnouncementStatus; // 'SENT' | 'DRAFT'
-  sentAt: Date;
-}
-```
-
-**UI/UXのこだわり**:
-- 優先度による視覚的な強調（HIGH = 重要バッジ）
-- 下書き状態の明確な表示
-- `sonner`によるトースト通知
-
-#### 2.1.5 広告収益管理 (`app/admin/ads/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **KPIカード**:
-  - 総収益（`DollarSign`アイコン、Green-600）
-  - 総インプレッション（`Eye`アイコン、Blue-600）
-  - 総クリック数（`MousePointerClick`アイコン、Purple-600）
-  - CTR（`TrendingUp`アイコン、Orange-600）
-- **月別収益推移グラフ**:
-  - CSSベースの棒グラフ（`RevenueChart`コンポーネント）
-  - 最大値に対する相対的な高さ表示
-  - ホバー時のツールチップ（金額表示）
-- **会場別パフォーマンスランキング**:
-  - ランキング、会場名、インプレッション、収益、ステータス
-  - ステータスバッジ（Active/Suspended）
-
-**データ構造**:
-```typescript
-interface VenuePerformance {
-  rank: number;
-  venueName: string;
-  impressions: number;
-  revenue: number;
-  status: 'active' | 'suspended';
-}
-```
-
-**UI/UXのこだわり**:
-- グラフの視覚的な表現（CSSのみで実装）
-- ランキングによる競争意識の喚起
-- カラーコードによるKPIの区別
-
-#### 2.1.6 チーム管理 (`app/admin/team/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **メンバー一覧テーブル**:
-  - 名前、メール、権限、ステータス、参加日
-  - 権限バッジ（Owner/Member）
-  - ステータスバッジ（Active/Invited）
-- **メンバー招待**:
-  - `InviteMemberDialog`コンポーネント
-  - メールアドレス入力、招待メール送信
-- **メンバー削除**:
-  - ドロップダウンメニューから「削除」
-
-**データ構造**:
-```typescript
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: TeamMemberRole; // 'OWNER' | 'MEMBER'
-  status: TeamMemberStatus; // 'ACTIVE' | 'INVITED'
-  joinedAt: Date;
-  avatar?: string;
-}
-```
-
-**UI/UXのこだわり**:
-- 現在のユーザーを「あなた」として表示
-- 権限による視覚的な区別（Owner = Indigo、Member = Secondary）
-
-#### 2.1.7 レイアウト (`app/admin/layout.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **サイドバーナビゲーション**:
-  - Indigo-800背景、固定幅（`w-64`）
-  - メニュー項目: ホーム、会場管理、お知らせ、広告収益、チーム管理
-  - アクティブ状態の視覚的フィードバック（左端バー、背景色）
-  - 設定メニューとログアウトボタン（最下部）
-- **ロゴエリア**: "Guest Link"ブランド名
-
-**UI/UXのこだわり**:
-- アクティブページの明確な表示（左端バー、背景色、太字）
-- ホバー時のスムーズなトランジション
-- 設定とログアウトの分離（視覚的な区別）
-
-### 2.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)
-
-#### 2.2.1 ダッシュボード (`app/(dashboard)/dashboard/(main)/[venueId]/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **メニューカード**（グラデーション背景）:
-  - 挙式管理（Emerald系グラデーション）
-  - 会場設定（Blue系グラデーション）
-  - システム設定（Gray系グラデーション）
-- **最新のお知らせバナー**:
-  - 未読優先表示（未読 = 左端バー、背景色）
-  - 日付ソート（新しい順）
-  - 通知一覧ページへのリンク
-- **フィードバックフィード**（`FeedbackFeed`コンポーネント）:
-  - 最新3件のフィードバック表示
-  - 挙式情報付き（家族名、日付）
-  - 評価（星表示）
-  - フィードバック詳細ページへのリンク
-
-**UI/UXのこだわり**:
-- グラデーションによる視覚的な魅力
-- 未読通知の明確な表示（左端バー、背景色）
-- フィードバックの即座の確認
-
-#### 2.2.2 挙式管理 (`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **挙式一覧カード**:
-  - 日付色分け（土曜=青、日曜=赤、平日=グレー）
-  - 家族名、時間、会場名、プランナー名、ゲスト数
-  - ロック状態表示（ロックアイコン、ロック日時）
-  - 挙式詳細ページへのリンク
-- **検索・フィルタ機能**:
-  - 日付範囲フィルタ
-  - プランナー名検索
-  - ロック状態フィルタ（すべて/ロック済み/未ロック）
-- **挙式作成**: 「新規挙式」ボタン（未実装、TODO）
-
-**データ構造**:
 ```typescript
 interface Wedding {
-  id: number;
-  date: string;
-  familyNames: string;
-  time: string;
-  hall: string;
-  isLocked: boolean;
-  lockedAt: string | null;
-  lockedBy: string | null;
-  plannerName?: string;
-  guestCount?: number;
-  mode?: 'INTERACTIVE' | 'SIMPLE';
-}
-```
-
-**UI/UXのこだわり**:
-- 日付色分けによる視覚的な区別（土日を強調）
-- ロック状態の明確な表示
-- 検索・フィルタの即座の反映
-
-#### 2.2.3 挙式詳細 (`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`)
-
-**実装状況**: ✅ 完全実装（大規模な実装）
-
-**主要機能**:
-- **挙式基本情報**:
-  - 日付・時間表示（読みやすい形式）
-  - 新郎新婦名（「&」で区切り、アクセントカラー）
-  - 会場名、プランナー名、ゲスト数
-  - モード表示（INTERACTIVE/SIMPLE）
-- **新郎新婦情報編集**:
-  - 姓名入力（新郎・新婦それぞれ）
-  - フルネーム表示（「&」で区切り）
-- **卓設定**:
-  - デフォルト12卓（`VENUE_DEFAULT_SETTINGS`）
-  - 命名パターン（alphabet/number/matsu）
-  - 卓追加・削除
-  - ゲスト割り当て（ドラッグ&ドロップ未実装、TODO）
-  - 卓ごとの写真・メッセージ設定
-- **ロック機能**:
-  - ロック状態の切り替え（`Switch`コンポーネント）
-  - ロック時の警告ダイアログ
-  - ロック後の編集不可状態
-- **フィードバックタブ**（`FeedbackTab`コンポーネント）:
-  - 新郎新婦からのフィードバック
-  - ゲストからのフィードバック
-  - 評価（星表示）、コメント、日付
-- **QRコード生成・URL共有**:
-  - QRコード表示（`QrCode`アイコン）
-  - URLコピー機能
-  - ダウンロード機能（未実装、TODO）
-
-**UI/UXのこだわり**:
-- 新郎新婦名の視覚的な表現（「&」をアクセントカラーで）
-- ロック機能の明確な警告
-- タブによる情報の整理
-- ツールチップによる説明
-
-#### 2.2.4 通知管理 (`app/(dashboard)/dashboard/(main)/[venueId]/notifications/page.tsx`)
-
-**実装状況**: ✅ 完全実装（アーキテクチャパターン適用）
-
-**主要機能**:
-- **通知一覧表示**:
-  - タイプ別アイコン（Alert/Info/Check）
-  - タイトル、本文、日付
-  - 既読/未読状態の視覚的区別
-  - 相対時間表示（「X分前」「X時間前」「X日前」）
-- **既読管理**:
-  - 通知クリックで自動既読
-  - Context APIによる状態管理
-  - オプティミスティックUI更新
-
-**アーキテクチャパターン**:
-- **View層**: `VenueNotificationsPage`（表示のみ）
-- **ViewModel層**: `useNotification`フック（ロジック管理）
-- **Repository層**: `notificationService`（データ取得・更新）
-
-**データ構造**:
-```typescript
-interface Notification {
   id: string;
-  title: string;
-  content: string;
-  date: string;
-  readByUserIds: string[];
-  type: NotificationType; // 'system' | 'alert' | 'info' | 'success'
-  isImportant?: boolean;
-  priority?: NotificationPriority; // 'normal' | 'important'
-  relatedResourceId?: string;
-  actionUrl?: string;
+  date: string;                    // ISO 8601形式の日付
+  time: string;                    // HH:mm形式
+  hall: string;                    // 会場名（ホール名）
+  familyNames: string;             // 新郎新婦の家族名（表示用）
+  
+  // 動的設定項目（新規追加）
+  welcomeImageUrl?: string;        // ギャラリー画面の背景画像
+  
+  // ロック機能
+  isLocked: boolean;               // データ確定（ロック）されているか
+  lockedAt: string | null;         // ロック日時
+  lockedBy: string | null;         // ロックしたユーザーID
+  
+  venueId?: string;                // 会場ID（将来的に追加予定）
 }
 ```
 
-**UI/UXのこだわり**:
-- タイプ別の視覚的な区別（アイコン、色）
-- 未読通知の明確な表示
-- 相対時間による親しみやすい表示
+**使用箇所:**
+- `app/couple/layout.tsx`: `welcomeImageUrl` をヒーローセクションの背景として使用
+- `app/couple/page.tsx`: 挙式日をカウントダウン表示
 
-#### 2.2.5 設定 (`app/(dashboard)/dashboard/(main)/[venueId]/settings/page.tsx`)
+#### 3.2.3 Table (卓)
 
-**実装状況**: ✅ 完全実装
+**ファイル**: `lib/types/schema.ts` (303-333行目)
 
-**主要機能**:
-- **基本設定**:
-  - Google MapsレビューURL設定
-  - LINE公式アカウントURL設定
-  - 表示会場名設定
-- **口コミ収集設定**（`ReviewSettings`コンポーネント）:
-  - 新郎新婦向け設定:
-    - 口コミ投稿先URL（Googleマップ、みんなのウェディング等）
-    - 評価閾値（星の数、デフォルト4）
-  - ゲスト向け設定:
-    - 口コミ投稿先URL
-    - 評価閾値（星の数、デフォルト4）
-  - 通知メールアドレス設定
-- **バリデーション**:
-  - URL形式チェック（`isValidUrl`）
-  - メールアドレス形式チェック（`isValidEmail`）
-- **変更検知**:
-  - 変更がある場合のみ保存ボタン有効化
-  - 変更前の値との比較（`useMemo`）
+**重要なフィールド:**
 
-**UI/UXのこだわり**:
-- リアルタイムバリデーション（エラー表示）
-- URL確認ボタン（新しいタブで開く）
-- 変更検知によるUX向上（不要な保存を防止）
-
-#### 2.2.6 レイアウト (`app/(dashboard)/dashboard/(main)/[venueId]/layout.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **サイドバーナビゲーション**:
-  - Emerald-800〜Teal-900グラデーション背景
-  - メニュー項目: ホーム、お知らせ、挙式管理、会場設定、アカウント一覧、設定
-  - 未読通知バッジ（お知らせメニューに表示）
-  - アクティブ状態の視覚的フィードバック
-- **契約プラン表示カード**:
-  - Light Plan: 薄い背景、プログレスバー
-  - Standard Plan: グラデーション背景、シャドウ
-- **ヘッダー**:
-  - Emerald-600〜Teal-600グラデーション背景
-  - ユーザーメニュー（`UserNav`コンポーネント）
-- **NotificationProvider**:
-  - Context APIによる通知状態管理
-  - 未読件数の計算
-
-**UI/UXのこだわり**:
-- Emerald系による統一感
-- プラン表示による契約状況の明確化
-- 未読通知バッジによる注意喚起
-
-### 2.3 新郎新婦側機能 (`app/couple/`)
-
-#### 2.3.1 コンプライアンス機能
-
-**実装状況**: ✅ 完全実装
-
-**新郎新婦側 (`app/couple/tables/page.tsx`)**:
-- **状態管理**: ゲスト側と同様の構造
-- **UI**: ゲスト側と同じデザイン（オレンジ色の警告枠）
-- **文言調整**: 「ゲストに公開されます」という表現を使用
-- **フロー**:
-  1. ファイル選択 → `handleFileSelect` が呼ばれる
-  2. コンプライアンスモーダルを表示
-  3. 同意チェック後、「写真を追加する」ボタンで `handlePhotoUploadAfterCompliance` 実行
-  4. ファイルを `currentPhotos` に追加（保存ボタンで確定）
-
-#### 2.3.2 UI/UXロジック
-
-**ヒーローセクション（`app/couple/layout.tsx`）**:
-- **背景画像**: `MOCK_WEDDING.venueCoverImage` から読み込み
-- **視認性向上**:
-  - 全体に `bg-black/20` を適用
-  - 下からグラデーション: `bg-gradient-to-t from-black/80 via-black/40 to-transparent`
-  - 文字にドロップシャドウを適用
-- **高さ調整**: スマホ `min-h-[280px]`、PC `md:min-h-[400px]`
-- **カウントダウン表示**: 挙式前「あと XX 日」、挙式後「Happy Wedding!」
-
-**スマホ最適化**:
-- **dvh対応**: `min-h-screen` → `min-h-dvh`
-- **余白の圧縮**: `py-6` → `py-4 md:py-6`
-- **日本語テキスト最適化**: 見出しに `text-balance` を追加
-- **タップ領域**: ボタン高さ `h-12` (48px) 以上
-
-#### 2.3.3 ステータス管理（卓設定画面）
-
-**完了判定ロジック**:
 ```typescript
-const completedTables = tables.filter(table => 
-  table.isCompleted === true || table.isSkipped === true
-).length;
+interface Table {
+  id: string;
+  name: string;                    // 卓名（例: "A", "B", "1", "2"）
+  message: string;                  // 新郎新婦からのメッセージ
+  photoUrl: string | null;         // 卓用の写真URL
+  isCompleted: boolean;            // 完了状態（写真・メッセージが設定済みか）
+  isSkipped: boolean;              // スキップ済みか（共通写真を使用する場合）
+  weddingId: string;              // 挙式ID（外部キー）
+}
 ```
 
-**3つの視覚パターン**:
-1. **パターン1: 写真登録済み** - 背景: 設定した写真、ステータスバッジ: 緑のチェックマーク、`opacity-90`
-2. **パターン2: 未登録** - 背景: 白背景、破線枠、大きな「＋」アイコン、`ring-2 ring-emerald-200`
-3. **パターン3: スキップ済み** - 背景: 薄いグレー、アイコン: 「共通写真」、ステータスバッジ: 「共通」
+**使用箇所:**
+- `app/couple/tables/page.tsx`: 卓設定画面で編集
+- `app/(guest)/guest/(main)/gallery/page.tsx`: 卓ごとのアルバムタブで表示
 
-**進捗バー**: 「完了状況: X / Y 卓」、`framer-motion`でアニメーション、100%完了時グラデーション
+#### 3.2.4 Photo (写真)
 
-#### 2.3.4 レビュー・口コミ機能
+**ファイル**: `lib/types/schema.ts` (382-421行目)
 
-**`PostWeddingThankYouCard`**:
-- **localStorage連携**: キー `wedding_app_has_reviewed_${coupleId}`
-- **条件分岐ロジック**: 高評価（4-5星）→外部サイト、低評価（1-3星）→内部フィードバック
-- **性善説UX**: スキップボタンなし
+**重要なフィールド:**
 
-**`CoupleReviewGateDrawer`**: ダウンロード前のレビューゲート
-
-### 2.4 ゲスト側機能 (`app/(guest)/guest/`)
-
-#### 2.4.1 エントリーページ (`app/(guest)/guest/(entry)/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **会場名表示**: 背景画像付き、グラデーションオーバーレイ
-- **挙式選択**: 新郎新婦名、時間を表示
-- **パスコード入力**:
-  - 4桁数字キーパッド
-  - 入力中の視覚的フィードバック（ドット表示）
-  - 認証成功時のアニメーション（鍵が開く）
-  - 認証失敗時のシェイクアニメーション
-
-**UI/UXのこだわり**:
-- `framer-motion`によるスムーズなアニメーション
-- 背景画像による雰囲気作り
-- パスコード入力の直感的なUI
-
-#### 2.4.2 アンケート (`app/(guest)/guest/(onboarding)/survey/page.tsx`)
-
-**実装状況**: ✅ 完全実装
-
-**主要機能**:
-- **星評価**: 1-5星、ホバーエフェクト
-- **評価に応じた分岐**:
-  - 高評価（4-5星）: Googleマップレビュー誘導
-  - 低評価（1-3星）: 内部フィードバック（Textarea）
-- **ギャラリーへの遷移**: 評価完了後、自動遷移
-
-**UI/UXのこだわり**:
-- 星評価の視覚的な魅力
-- 評価に応じた適切な分岐
-- スムーズな遷移
-
-#### 2.4.3 ゲストギャラリー (`app/(guest)/guest/(main)/gallery/page.tsx`)
-
-**実装状況**: ✅ 完全実装（大規模な実装）
-
-**主要機能**:
-- **オープニングモーダル**: 会場名、日付、メッセージ
-- **タブUI**: 「新郎新婦より」「この卓のアルバム」
-- **写真アップロード**:
-  - 5枚制限（デフォルト）
-  - LINE連携で無制限化（`enableLineUnlock`フラグで制御）
-  - コンプライアンスチェックモーダル
-  - プレビュー表示
-- **写真削除機能**: アップロード済み写真の削除
-- **会場設定による機能制限分岐**:
-  - `enableLineUnlock === true`: LINE連携モーダル表示
-  - `enableLineUnlock === false`: トーストエラー表示、上限到達ボタン無効化
-
-**データ構造**:
 ```typescript
-const VENUE_INFO = {
+interface Photo {
+  id: string;
+  url: string;                     // ストレージ上のパスまたはURL
+  alt?: string;                    // 写真の説明・キャプション
+  source: PhotoSource;             // 'couple' | 'guest' | 'table'
+  weddingId: string;              // 挙式ID（外部キー）
+  tableId: string | null;          // 卓ID（卓ごとの写真の場合、全員向けの場合は null）
+  uploadedBy: string;             // アップロードしたユーザーID（外部キー）
+  approvalStatus?: PhotoApprovalStatus;  // 'pending' | 'approved' | 'rejected'
+  isFavorite?: boolean;            // お気に入りフラグ（新郎新婦がお気に入りにしたか）
+  isMyPhoto?: boolean;            // 自分の写真か（ゲスト側のUI用フラグ）
+  uploadedAt: string;             // アップロード日時（ISO 8601形式）
+}
+```
+
+**使用箇所:**
+- `app/(guest)/guest/(main)/gallery/page.tsx`: ゲストがアップロード・閲覧
+- `app/couple/gallery/page.tsx`: 新郎新婦が閲覧・お気に入り登録
+
+#### 3.2.5 Guest (ゲスト)
+
+**ファイル**: `lib/types/schema.ts` (68-94行目)
+
+**重要なフィールド:**
+
+```typescript
+interface Guest extends User {
+  role: 'GUEST';
+  weddingId: string;              // 挙式ID（外部キー）
+  tableId: string | null;         // 卓ID（配席確定前は null）
+  status: GuestStatus;            // 'pending' | 'confirmed' | 'locked'
+  surveyStatus: SurveyStatus;    // 'not_answered' | 'answered' | 'approved'
+  allergyStatus: AllergyStatus;  // 'none' | 'reported' | 'confirmed'
+  allergies: string[];           // アレルギー情報（文字列配列）
+}
+```
+
+**使用箇所:**
+- `app/(guest)/guest/(onboarding)/survey/page.tsx`: レビュー完了後に `surveyStatus` を更新
+
+---
+
+## 4. 主要機能のロジック解説
+
+### 4.1 厳格なレビューゲート機能
+
+**ファイル**: `app/(guest)/guest/(onboarding)/survey/page.tsx`
+
+#### 4.1.1 フロー図
+
+```mermaid
+stateDiagram-v2
+    [*] --> locked: 初期状態
+    locked --> rating: 1秒後（自動遷移）
+    rating --> action: 星評価クリック
+    action --> unlocking: アクションボタンクリック
+    unlocking --> redirecting: ロック解除アニメーション完了
+    redirecting --> [*]: ギャラリーへ遷移
+    
+    note right of locked
+        鍵アイコン表示
+        「ギャラリーへ」ボタンは非表示
+    end note
+    
+    note right of action
+        高評価(4-5): 外部URL誘導
+        低評価(1-3): 内部フィードバック
+    end note
+    
+    note right of unlocking
+        鍵が開くアニメーション
+        紙吹雪エフェクト
+        「ギャラリーへ進む」ボタン表示
+    end note
+```
+
+#### 4.1.2 実装の詳細
+
+**ステップ定義:**
+
+```typescript
+type Step = 'locked' | 'rating' | 'action' | 'unlocking' | 'redirecting';
+```
+
+**設定値（会場ごとに変更可能）:**
+
+```typescript
+const REVIEW_CONFIG = {
+  url: 'https://maps.google.com/?q=表参道テラス',  // レビュー投稿先URL
+  minRatingForExternal: 4,  // 外部誘導する最低星数（4以上なら外部、3以下なら内部）
+} as const;
+```
+
+**分岐ロジック:**
+
+```typescript
+// 評価が高い場合（設定値以上）は外部誘導あり、低い場合（設定値未満）は内部フィードバックのみ
+const isHighRating = rating >= REVIEW_CONFIG.minRatingForExternal;
+
+// 高評価の場合: 外部レビューサイトへ誘導
+if (isHighRating) {
+  window.open(REVIEW_CONFIG.url, '_blank');
+  showUnlockAnimation();  // ロック解除アニメーション
+} else {
+  // 低評価の場合: 内部フィードバックを送信
+  await submitReview(weddingId, userId, rating, feedbackText);
+  showUnlockAnimation();
+}
+```
+
+**重要なポイント:**
+
+1. **「ギャラリーへ進む」ボタンは `unlocking` ステップで初めて表示される**
+   - `locked`, `rating`, `action` ステップでは非表示
+   - レビューアクション（外部URL開く or フィードバック送信）を実行した後にのみ表示
+
+2. **LocalStorageによる状態管理:**
+   ```typescript
+   const getReviewStorageKey = (guestId?: string) => {
+     return `wedding_app_review_completed_${guestId || 'default'}`;
+   };
+   ```
+   - レビュー完了状態をLocalStorageに保存
+   - 次回アクセス時にスキップ可能（実装予定）
+
+3. **紙吹雪エフェクト:**
+   - `canvas-confetti` を使用してロック解除時に視覚的なフィードバックを提供
+
+### 4.2 写真アップロード & LINE連携制限
+
+**ファイル**: `app/(guest)/guest/(main)/gallery/page.tsx`
+
+#### 4.2.1 アップロード枚数制限ロジック
+
+**制限ルール:**
+- デフォルト: **5枚まで**アップロード可能
+- `enableLineUnlock === true` の場合: LINE連携で制限解除可能
+- `enableLineUnlock === false` の場合: 5枚でハードリミット
+
+**実装:**
+
+```typescript
+// 会場設定の読み込み
+const [venueInfo, setVenueInfo] = useState<{
   name: string;
   coverImage: string;
-  date: string;
-  enableLineUnlock: boolean; // 会場設定による機能制限フラグ
-};
-```
+  enableLineUnlock: boolean;
+} | null>(null);
 
-**UI/UXのこだわり**:
-- タブによる情報の整理
-- コンプライアンスチェックによる安全性
-- 会場設定による柔軟な機能制御
-
----
-
-## 3. ディレクトリ・ファイル構成図
-
-### 3.1 スーパーアドミン (`app/admin/`)
-
-```
-app/admin/
-├── layout.tsx                    # サイドバーナビゲーション（Indigo系）
-├── page.tsx                      # ダッシュボード（KPI、会場一覧）
-├── venues/
-│   ├── page.tsx                  # 会場一覧（CRUD、検索、フィルタ）
-│   ├── [id]/
-│   │   ├── page.tsx              # 会場詳細（統計、アカウント、アクティビティ）
-│   │   └── _components/
-│   │       └── AddAccountDialog.tsx
-│   └── _components/
-│       └── CreateVenueDialog.tsx
-├── announcements/
-│   ├── page.tsx                  # お知らせ一覧（CRUD、優先度、配信状態）
-│   └── _components/
-│       └── CreateAnnouncementDialog.tsx
-├── ads/
-│   └── page.tsx                  # 広告収益ダッシュボード（KPI、グラフ、ランキング）
-├── team/
-│   ├── page.tsx                  # メンバー一覧（招待、権限管理）
-│   └── _components/
-│       └── InviteMemberDialog.tsx
-└── settings/
-    └── page.tsx
-```
-
-### 3.2 プランナー管理画面 (`app/(dashboard)/dashboard/`)
-
-```
-app/(dashboard)/dashboard/
-├── (auth)/
-│   └── login/
-│       └── page.tsx              # ログインページ
-└── (main)/
-    ├── page.tsx                  # リダイレクト（/dashboard/login へ）
-    └── [venueId]/
-        ├── layout.tsx            # サイドバーナビゲーション（Emerald系）、NotificationProvider
-        ├── page.tsx              # ダッシュボード（メニューカード、最新お知らせ、フィードバック）
-        ├── weddings/
-        │   ├── page.tsx          # 挙式一覧（日付色分け、検索、フィルタ）
-        │   └── [id]/
-        │       ├── page.tsx      # 挙式詳細（基本情報、卓設定、ロック機能、フィードバック）
-        │       └── _components/
-        │           └── FeedbackTab.tsx
-        ├── venues/
-        │   └── page.tsx          # 会場設定（QRコード生成、URL共有）
-        ├── accounts/
-        │   └── page.tsx          # アカウント一覧（admin/planner権限）
-        ├── notifications/
-        │   └── page.tsx          # 通知一覧（既読管理、Context API）
-        ├── settings/
-        │   ├── page.tsx          # 設定ページ（Google Maps、LINE連携、口コミ設定）
-        │   └── _components/
-        │       └── ReviewSettings.tsx
-        └── _components/
-            └── FeedbackFeed.tsx
-```
-
-### 3.3 新郎新婦側 (`app/couple/`)
-
-```
-app/couple/
-├── layout.tsx                    # 共通レイアウト（ヒーローセクション、フッターナビ）
-├── page.tsx                      # ホーム画面（STEP 1, 2の進捗表示）
-├── tables/
-│   └── page.tsx                  # 卓設定ページ（進捗バー、卓カード、コンプライアンスモーダル）
-├── gallery/
-│   └── page.tsx                  # 写真ギャラリー（Pre-Wedding Lock Screen、写真グリッド、レビューゲート）
-├── login/
-│   └── page.tsx
-├── photos/
-│   └── page.tsx                  # （存在するが未確認）
-└── settings/
-    └── page.tsx
-```
-
-### 3.4 ゲスト側 (`app/(guest)/guest/`)
-
-```
-app/(guest)/guest/
-├── (entry)/
-│   └── page.tsx                  # エントリーページ（パスコード入力）
-├── (main)/
-│   └── gallery/
-│       └── page.tsx              # ゲストギャラリー（オープニングモーダル、タブUI、写真アップロード、コンプライアンス）
-└── (onboarding)/
-    └── survey/
-        └── page.tsx              # アンケート（星評価、フィードバック、ギャラリー遷移）
-```
-
-### 3.5 コンポーネント (`components/`)
-
-```
-components/
-├── ui/                           # shadcn/ui コンポーネント
-│   ├── dialog.tsx
-│   ├── sheet.tsx
-│   ├── checkbox.tsx
-│   ├── button.tsx
-│   ├── card.tsx
-│   ├── table.tsx
-│   ├── badge.tsx
-│   ├── tabs.tsx
-│   ├── switch.tsx
-│   ├── tooltip.tsx
-│   ├── dropdown-menu.tsx
-│   ├── form.tsx
-│   ├── input.tsx
-│   ├── label.tsx
-│   ├── radio-group.tsx
-│   ├── select.tsx
-│   ├── textarea.tsx
-│   └── sonner.tsx
-│
-├── admin/
-│   └── Common/
-│       ├── Header.tsx
-│       └── Sidebar.tsx
-│
-├── notifications/
-│   ├── NotificationHeader.tsx
-│   ├── NotificationList.tsx
-│   ├── NotificationCard.tsx
-│   └── EmptyState.tsx
-│
-├── guest/
-│   ├── Lightbox.tsx
-│   └── OpeningModal.tsx
-│
-├── PostWeddingThankYouCard.tsx   # 挙式後のサンクスレター
-├── CoupleReviewGateDrawer.tsx    # ダウンロード前のレビューゲート
-├── DownloadWaitModal.tsx         # ダウンロード待機モーダル（広告表示）
-├── AdCard.tsx                    # 広告カードコンポーネント
-├── MasonryGallery.tsx            # Masonryレイアウトのギャラリー
-└── UserNav.tsx                   # ユーザーメニュー（プランナー用）
-```
-
-### 3.6 ライブラリ・ユーティリティ (`lib/`)
-
-```
-lib/
-├── types/
-│   ├── admin.ts                  # 管理画面用型定義（Guest, Wedding, TableLayout, SeatingPlan）
-│   └── notifications.ts         # 通知システムの型定義
-│
-├── constants/
-│   ├── venues.ts                 # 会場情報の定数（VENUE_INFO, getVenueInfo）
-│   └── external.ts               # 外部サービス連携定数
-│
-├── data/
-│   └── notifications.ts         # 通知データの初期データ（モック）
-│
-├── services/
-│   └── notificationService.ts   # 通知サービスのRepository層
-│
-├── hooks/
-│   └── useNotifications.ts       # 通知管理カスタムフック（ViewModel層）
-│
-├── utils/
-│   ├── dateFormatter.ts          # 日付フォーマットユーティリティ
-│   ├── notificationStyle.tsx     # 通知スタイルの設定
-│   └── cn.ts                     # className結合ユーティリティ
-│
-└── contexts/
-    └── NotificationContext.tsx   # 通知Context（Provider、useNotification）
-```
-
----
-
-## 4. UI/デザインガイドライン（現状の実装に基づく）
-
-### 4.1 配色
-
-#### スーパーアドミン（Indigo系）
-- `indigo-50`, `indigo-100`, `indigo-200`: 背景・ボーダー
-- `indigo-500`, `indigo-600`, `indigo-700`, `indigo-800`: アクセント・ボタン・サイドバー
-- `indigo-900`: テキスト
-
-#### プランナー管理画面（Emerald系）
-- `emerald-50`, `emerald-100`, `emerald-200`: 背景・ボーダー
-- `emerald-400`, `emerald-500`, `emerald-600`: アクセント・ボタン
-- `emerald-700`, `emerald-800`, `emerald-900`: サイドバー・テキスト
-- `teal-500`, `teal-600`, `teal-900`: グラデーション・サイドバー
-
-#### 新郎新婦側（Emerald系）
-- `emerald-50`, `emerald-100`, `emerald-200`: 背景・ボーダー
-- `emerald-400`, `emerald-500`, `emerald-600`: アクセント・ボタン
-- `emerald-700`, `emerald-800`: テキスト
-- `teal-500`, `teal-600`: グラデーション（ボタン）
-
-#### 警告色（Orange系）
-- `orange-100`, `orange-200`: コンプライアンスモーダルの背景
-- `orange-400`, `orange-500`, `orange-600`, `orange-700`, `orange-800`: 警告テキスト・アイコン
-
-#### ニュートラル（Gray/Stone系）
-- `gray-50`, `gray-100`: 背景
-- `gray-200`, `gray-300`: ボーダー
-- `gray-600`, `gray-700`, `gray-900`: テキスト
-- `stone-50`, `stone-100`: ゲスト側の背景
-- `stone-200`, `stone-300`: ボーダー
-- `stone-600`, `stone-700`, `stone-800`: テキスト
-
-#### ステータス色
-- **成功**: `green-400`, `green-500`, `green-600`
-- **エラー**: `red-500`, `red-600`
-- **警告**: `yellow-400`, `yellow-500`
-- **情報**: `blue-400`, `blue-500`, `blue-600`
-
-### 4.2 フォント指定
-
-```typescript
-style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", sans-serif' }}
-```
-
-- システムフォント優先
-- 日本語対応（`Noto Sans JP`）
-- `font-sans`クラスで統一
-
-### 4.3 モーダル・シートの挙動
-
-#### Sheet（下からスライド）
-- `side="bottom"`
-- `h-[85dvh]`（モバイル対応）
-- `overflow-y-auto`
-
-#### Dialog（中央表示）
-- `max-h-[90dvh]`
-- `overflow-y-auto`
-
-### 4.4 アニメーション
-
-- **framer-motion**: カウントダウン、カード表示、プログレスバー、パーティクル
-- **transition**: `transition-all duration-200`
-- **active**: `active:scale-95`（タップフィードバック）
-- **hover**: `hover:shadow-md`（ホバー時のシャドウ変化）
-
-### 4.5 レスポンシブ設計
-
-- **モバイルファースト**: 基本スタイルはモバイル、`md:` でPC対応
-- **ブレークポイント**: `md` (768px)
-- **コンテナ**: `max-w-md mx-auto`（モバイル）、`max-w-4xl`（PC）、`max-w-7xl`（管理画面）
-
-### 4.6 アイコン
-
-- **lucide-react**: 主要なアイコンライブラリ
-- **インラインSVG**: 一部のコンポーネントでインラインSVGを使用（カスタムアイコン）
-
----
-
-## 5. データの扱い
-
-### 5.1 モックデータの場所
-
-#### スーパーアドミン
-
-**`app/admin/page.tsx`**:
-```typescript
-const MOCK_VENUES: Venue[] = [
-  {
-    id: 'v_001',
-    name: 'グランドホテル東京',
-    code: 'grand-hotel-tokyo',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    // ...
-  },
-];
-```
-
-**`app/admin/venues/page.tsx`**:
-```typescript
-const INITIAL_VENUES: Venue[] = [
-  // 会場一覧データ
-];
-```
-
-**`app/admin/venues/[id]/page.tsx`**:
-```typescript
-const getVenueById = (id: string): VenueDetail | null => {
-  const venues: Record<string, VenueDetail> = {
-    'v_001': { /* 会場詳細データ */ },
+useEffect(() => {
+  const loadData = async () => {
+    const venue = await getVenueInfo(MOCK_VENUE_ID);
+    setVenueInfo({
+      name: venue.name,
+      coverImage: venue.coverImageUrl || '...',
+      enableLineUnlock: venue.enableLineUnlock || false,
+    });
   };
-  return venues[id] || null;
-};
+  loadData();
+}, []);
 
-const getActivityLogs = (venueId: string): ActivityLog[] => {
-  return [/* アクティビティログ */];
-};
-```
-
-**`app/admin/announcements/page.tsx`**:
-```typescript
-const INITIAL_ANNOUNCEMENTS: Announcement[] = [
-  // お知らせデータ
-];
-```
-
-**`app/admin/ads/page.tsx`**:
-```typescript
-const MONTHLY_REVENUE_DATA = [/* 月別収益データ */];
-const VENUE_PERFORMANCE_DATA: VenuePerformance[] = [/* 会場別パフォーマンスデータ */];
-```
-
-**`app/admin/team/page.tsx`**:
-```typescript
-const INITIAL_MEMBERS: TeamMember[] = [
-  // チームメンバーデータ
-];
-```
-
-#### プランナー管理画面
-
-**`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`**:
-```typescript
-const DUMMY_WEDDINGS: Wedding[] = [
-  // 挙式一覧データ
-];
-```
-
-**`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`**:
-```typescript
-const getWeddingById = (id: number): Wedding | null => {
-  const weddings: Wedding[] = [
-    // 挙式詳細データ
-  ];
-  return weddings.find(w => w.id === id) || null;
+// ファイル選択時の制限チェック
+const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files || []);
+  
+  // 枚数制限チェック
+  if (uploadedCount + files.length > 5) {
+    if (venueInfo?.enableLineUnlock) {
+      // LINE連携モーダルを表示
+      setShowLimitModal(true);
+    } else {
+      // エラートーストを表示（ハードリミット）
+      toast.error('申し訳ありません。投稿枚数の上限（5枚）に達しました。');
+    }
+    return;
+  }
+  
+  // コンプライアンスチェックモーダルを表示
+  setShowComplianceModal(true);
+  setSelectedFiles(files);
 };
 ```
 
-**`app/(dashboard)/dashboard/(main)/[venueId]/_components/FeedbackFeed.tsx`**:
+**UIの条件分岐:**
+
 ```typescript
-async function fetchFeedbacks(venueId: string): Promise<FeedbackWithWedding[]> {
-  // モックデータ
-  return [/* フィードバックデータ */];
+{/* LINE連携ボタン（enableLineUnlockがtrueの場合のみ表示） */}
+{venueInfo?.enableLineUnlock && (
+  <button onClick={handleLineConnect}>
+    LINE連携で無制限にする
+  </button>
+)}
+
+{/* 上限到達時のメッセージ */}
+{uploadedCount >= 5 && !venueInfo?.enableLineUnlock && (
+  <p>投稿枚数の上限に達しました</p>
+)}
+```
+
+### 4.3 ダウンロード機能
+
+**ファイル**: `app/couple/gallery/page.tsx`
+
+#### 4.3.1 単一ダウンロード（スマホ対応）
+
+**優先順位:**
+1. **Web Share API** (モバイル端末)
+2. **Blob形式での強制ダウンロード** (PC/非対応ブラウザ)
+
+**実装:**
+
+```typescript
+const executeDownload = async (photoUrl: string, photoId: string) => {
+  try {
+    // 1. Web Share APIを試行（モバイル端末）
+    if (navigator.share) {
+      const response = await fetch(photoUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `photo-${photoId}.jpg`, { type: blob.type });
+      
+      await navigator.share({
+        files: [file],
+        title: '写真を共有',
+      });
+      return;
+    }
+    
+    // 2. Blob形式での強制ダウンロード（PC/非対応ブラウザ）
+    const response = await fetch(photoUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `photo-${photoId}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      console.warn('Web Share API failed, falling back to blob download:', error);
+      // フォールバック処理
+    }
+  }
+};
+```
+
+#### 4.3.2 一括ダウンロード（ZIP圧縮）
+
+**実装:**
+
+```typescript
+const executeBulkDownload = async () => {
+  const loadingToastId = toast.loading('ZIPファイルを作成中...');
+  
+  try {
+    const zip = new JSZip();
+    const photosToDownload = photos;  // 選択された写真または全ての写真
+    
+    // 全ての画像を並列で取得してZIPに追加
+    const fetchPromises = photosToDownload.map(async (photo, index) => {
+      try {
+        const response = await fetch(photo.url);
+        const blob = await response.blob();
+        const filename = `photo-${photo.id || index + 1}.jpg`;
+        zip.file(filename, blob);
+      } catch (error) {
+        console.warn(`Failed to fetch photo ${photo.id}:`, error);
+      }
+    });
+    
+    await Promise.allSettled(fetchPromises);
+    
+    // ZIPファイルを生成
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
+    
+    // file-saverでダウンロード
+    const filename = `wedding-photos-${new Date().toISOString().split('T')[0]}.zip`;
+    saveAs(zipBlob, filename);
+    
+    toast.success('ZIPファイルのダウンロードを開始しました', {
+      id: loadingToastId,
+      description: `${photosToDownload.length}枚の写真が含まれています`,
+    });
+  } catch (error) {
+    toast.error('ダウンロードに失敗しました', { id: loadingToastId });
+  }
+};
+```
+
+### 4.4 入室フロー（パスコード認証）
+
+**ファイル**: `app/(guest)/guest/(entry)/page.tsx`
+
+#### 4.4.1 フロー
+
+```mermaid
+sequenceDiagram
+    participant G as Guest
+    participant E as Entry Page
+    participant A as Auth Logic
+    participant S as Survey Page
+    
+    G->>E: 会場選択
+    E->>E: 挙式選択
+    E->>E: パスコード入力（4桁）
+    E->>A: パスコード検証
+    alt 認証成功
+        A->>E: 鍵が開くアニメーション
+        E->>S: /guest/survey へ遷移
+    else 認証失敗
+        A->>E: シェイクアニメーション
+        E->>E: パスコードクリア
+    end
+```
+
+#### 4.4.2 実装の詳細
+
+**パスコード検証:**
+
+```typescript
+useEffect(() => {
+  if (passcode.length === 4 && selectedWedding && !isUnlocking && !isUnlocked) {
+    setIsUnlocking(true);
+    
+    // 認証処理のシミュレーション（実際はAPI呼び出し）
+    setTimeout(() => {
+      if (passcode === selectedWedding.passcode) {
+        setIsUnlocked(true);
+        setTimeout(() => {
+          router.push('/guest/survey');
+        }, 1500);
+      } else {
+        setIsUnlocking(false);
+        setShake(true);
+        setTimeout(() => {
+          setShake(false);
+          setPasscode('');
+        }, 600);
+      }
+    }, 500);
+  }
+}, [passcode, selectedWedding, isUnlocking, isUnlocked]);
+```
+
+**注意**: 現在はモックデータで動作しています。実際の実装では、バックエンドAPIでパスコードを検証する必要があります。
+
+---
+
+## 5. バックエンド開発者への実装ガイド
+
+### 5.1 Service層の実装方針
+
+**現在の状態:**
+- `lib/services/mock/` ディレクトリ内のすべての関数がモック実装
+- 各関数に `BACKEND_TODO` コメントが記載されている
+- UIコンポーネントは既にService層を使用しているため、**Service層の実装のみでバックエンド連携が完了**
+
+### 5.2 実装が必要なService関数一覧
+
+#### 5.2.1 Wedding Service (`lib/services/mock/weddingService.ts`)
+
+| 関数名 | 引数 | 戻り値 | APIエンドポイント | DBテーブル |
+|--------|------|--------|------------------|-----------|
+| `getWeddingInfo` | `weddingId: string` | `Promise<Wedding>` | `GET /api/weddings/:weddingId` | `weddings` |
+| `updateWelcomeMessage` | `weddingId: string, welcomeImageUrl: string` | `Promise<Wedding>` | `PATCH /api/weddings/:weddingId` | `weddings` + Storage |
+| `getWeddingTables` | `weddingId: string` | `Promise<Table[]>` | `GET /api/weddings/:weddingId/tables` | `tables` |
+| `getWeddingDate` | `weddingId: string` | `Promise<Date>` | `GET /api/weddings/:weddingId` | `weddings` |
+
+**実装例:**
+
+```typescript
+// lib/services/mock/weddingService.ts を lib/services/weddingService.ts にリネーム後
+
+export async function getWeddingInfo(weddingId: string): Promise<Wedding> {
+  const response = await fetch(`/api/weddings/${weddingId}`, {
+    headers: {
+      'Authorization': `Bearer ${getAuthToken()}`,  // 認証トークン
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch wedding: ${response.statusText}`);
+  }
+  
+  return response.json();
 }
 ```
 
-**`lib/data/notifications.ts`**:
+**Storage実装（`updateWelcomeMessage`）:**
+
 ```typescript
-export const INITIAL_NOTIFICATIONS: Notification[] = [
-  // 通知データ
-];
+export async function updateWelcomeMessage(
+  weddingId: string,
+  welcomeImageUrl: string
+): Promise<Wedding> {
+  // 1. 画像をSupabase Storageにアップロード
+  const file = await fetch(welcomeImageUrl).then(r => r.blob());
+  const fileName = `wedding-${weddingId}-welcome-${Date.now()}.jpg`;
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('wedding-welcome-images')
+    .upload(fileName, file);
+  
+  if (uploadError) throw uploadError;
+  
+  // 2. 公開URLを取得
+  const { data: { publicUrl } } = supabase.storage
+    .from('wedding-welcome-images')
+    .getPublicUrl(fileName);
+  
+  // 3. データベースを更新
+  const response = await fetch(`/api/weddings/${weddingId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify({ welcomeImageUrl: publicUrl }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to update wedding: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
 ```
 
-#### 新郎新婦側
+#### 5.2.2 Venue Service (`lib/services/mock/venueService.ts`)
 
-**`app/couple/layout.tsx`**:
+| 関数名 | 引数 | 戻り値 | APIエンドポイント | DBテーブル |
+|--------|------|--------|------------------|-----------|
+| `getVenueInfo` | `venueId: string` | `Promise<Venue>` | `GET /api/venues/:venueId` | `venues` |
+| `updateVenueSettings` | `venueId: string, updates: Partial<Venue>` | `Promise<Venue>` | `PATCH /api/venues/:venueId` | `venues` |
+
+**実装例:**
+
 ```typescript
-const MOCK_WEDDING_DATE = new Date('2026-03-15');
-const MOCK_WEDDING = {
-  venueCoverImage: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80',
-};
+export async function getVenueInfo(venueId: string): Promise<Venue> {
+  const response = await fetch(`/api/venues/${venueId}`, {
+    headers: {
+      'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch venue: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
 ```
 
-**`app/couple/page.tsx`**:
+#### 5.2.3 Photo Service (`lib/services/mock/photoService.ts`)
+
+| 関数名 | 引数 | 戻り値 | APIエンドポイント | Storage | DBテーブル |
+|--------|------|--------|------------------|---------|-----------|
+| `uploadPhoto` | `file: File, weddingId: string, tableId: string \| null, uploaderId: string` | `Promise<Photo>` | `POST /api/photos` | `wedding-photos/:weddingId/:tableId/` | `photos` |
+| `uploadPhotos` | `files: File[], weddingId: string, tableId: string \| null, uploaderId: string` | `Promise<Photo[]>` | `POST /api/photos/batch` | 同上 | `photos` |
+| `getPhotosByTable` | `tableId: string` | `Promise<Photo[]>` | `GET /api/tables/:tableId/photos` | - | `photos` |
+| `getPhotosByWedding` | `weddingId: string` | `Promise<Photo[]>` | `GET /api/weddings/:weddingId/photos` | - | `photos` |
+| `deletePhoto` | `photoId: string, userId: string` | `Promise<boolean>` | `DELETE /api/photos/:photoId` | Storage削除 | `photos` |
+| `togglePhotoFavorite` | `photoId: string, isFavorite: boolean` | `Promise<Photo>` | `PATCH /api/photos/:photoId/favorite` | - | `photos` |
+
+**実装例（`uploadPhoto`）:**
+
 ```typescript
-const MOCK_WEDDING = {
-  weddingDate: new Date('2026-03-15'),
-  tables: [/* 卓データ */],
-};
+export async function uploadPhoto(
+  file: File,
+  weddingId: string,
+  tableId: string | null,
+  uploaderId: string
+): Promise<Photo> {
+  // 1. Supabase Storageにアップロード
+  const fileName = `${weddingId}/${tableId || 'all'}/${Date.now()}-${file.name}`;
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('wedding-photos')
+    .upload(fileName, file);
+  
+  if (uploadError) throw uploadError;
+  
+  // 2. 公開URLを取得
+  const { data: { publicUrl } } = supabase.storage
+    .from('wedding-photos')
+    .getPublicUrl(fileName);
+  
+  // 3. データベースにレコードを作成
+  const response = await fetch('/api/photos', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify({
+      url: publicUrl,
+      weddingId,
+      tableId,
+      uploadedBy: uploaderId,
+      source: tableId ? 'table' : 'guest',
+      approvalStatus: 'approved',  // または 'pending'（承認フローがある場合）
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to upload photo: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
 ```
 
-**`app/couple/tables/page.tsx`**:
+#### 5.2.4 Guest Service (`lib/services/mock/guestService.ts`)
+
+| 関数名 | 引数 | 戻り値 | APIエンドポイント | DBテーブル |
+|--------|------|--------|------------------|-----------|
+| `submitReview` | `weddingId: string, userId: string, rating: number, content?: string` | `Promise<Feedback>` | `POST /api/feedbacks` | `feedbacks` |
+| `unlockGallery` | `guestId: string` | `Promise<Guest>` | `POST /api/guests/:guestId/unlock-gallery` | `guests` |
+| `getGuestInfo` | `guestId: string` | `Promise<Guest>` | `GET /api/guests/:guestId` | `guests` |
+
+**実装例（`submitReview`）:**
+
 ```typescript
-const MOCK_WEDDING = {
-  weddingDate: new Date('2026-03-15'),
-  tables: [/* 卓詳細データ */],
-};
+export async function submitReview(
+  weddingId: string,
+  userId: string,
+  rating: number,
+  content?: string
+): Promise<Feedback> {
+  const response = await fetch('/api/feedbacks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify({
+      weddingId,
+      userId,
+      rating,
+      content: content || '',
+      source: 'GUEST',
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to submit review: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
 ```
 
-**`app/couple/gallery/page.tsx`**:
-```typescript
-const MOCK_WEDDING_DATE = new Date('2026-03-15');
-const MOCK_PHOTOS = {
-  all: [/* 写真オブジェクト */],
-  byTable: { /* 卓ごとの写真 */ },
-  tables: [/* 卓情報 */],
-};
+### 5.3 データベーススキーマ推奨
+
+**主要テーブル:**
+
+```sql
+-- 会場テーブル
+CREATE TABLE venues (
+  id VARCHAR(255) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  code VARCHAR(255) UNIQUE NOT NULL,
+  plan VARCHAR(50) NOT NULL,  -- 'LIGHT', 'STANDARD', 'PREMIUM'
+  status VARCHAR(50) NOT NULL,  -- 'ACTIVE', 'SUSPENDED', 'ONBOARDING'
+  cover_image_url TEXT,
+  enable_line_unlock BOOLEAN DEFAULT false,
+  guest_review_url TEXT,
+  guest_review_threshold INTEGER DEFAULT 4,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 挙式テーブル
+CREATE TABLE weddings (
+  id VARCHAR(255) PRIMARY KEY,
+  venue_id VARCHAR(255) REFERENCES venues(id),
+  date DATE NOT NULL,
+  time VARCHAR(10) NOT NULL,  -- HH:mm形式
+  hall VARCHAR(255) NOT NULL,
+  family_names VARCHAR(255) NOT NULL,
+  welcome_image_url TEXT,
+  is_locked BOOLEAN DEFAULT false,
+  locked_at TIMESTAMP,
+  locked_by VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 卓テーブル
+CREATE TABLE tables (
+  id VARCHAR(255) PRIMARY KEY,
+  wedding_id VARCHAR(255) NOT NULL REFERENCES weddings(id),
+  name VARCHAR(50) NOT NULL,
+  message TEXT DEFAULT '',
+  photo_url TEXT,
+  is_completed BOOLEAN DEFAULT false,
+  is_skipped BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 写真テーブル
+CREATE TABLE photos (
+  id VARCHAR(255) PRIMARY KEY,
+  wedding_id VARCHAR(255) NOT NULL REFERENCES weddings(id),
+  table_id VARCHAR(255) REFERENCES tables(id),
+  uploaded_by VARCHAR(255) NOT NULL,  -- ユーザーID
+  url TEXT NOT NULL,  -- Storage上のURL
+  alt TEXT,
+  source VARCHAR(50) NOT NULL,  -- 'couple', 'guest', 'table'
+  approval_status VARCHAR(50) DEFAULT 'pending',  -- 'pending', 'approved', 'rejected'
+  is_favorite BOOLEAN DEFAULT false,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ゲストテーブル
+CREATE TABLE guests (
+  id VARCHAR(255) PRIMARY KEY,
+  wedding_id VARCHAR(255) NOT NULL REFERENCES weddings(id),
+  table_id VARCHAR(255) REFERENCES tables(id),
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'pending',  -- 'pending', 'confirmed', 'locked'
+  survey_status VARCHAR(50) DEFAULT 'not_answered',  -- 'not_answered', 'answered', 'approved'
+  allergy_status VARCHAR(50) DEFAULT 'none',  -- 'none', 'reported', 'confirmed'
+  allergies TEXT[],  -- PostgreSQL配列型
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- フィードバックテーブル
+CREATE TABLE feedbacks (
+  id VARCHAR(255) PRIMARY KEY,
+  wedding_id VARCHAR(255) NOT NULL REFERENCES weddings(id),
+  user_id VARCHAR(255) NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  content TEXT DEFAULT '',
+  source VARCHAR(50) NOT NULL,  -- 'COUPLE', 'GUEST'
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-#### ゲスト側
+**インデックス推奨:**
 
-**`app/(guest)/guest/(main)/gallery/page.tsx`**:
-```typescript
-const VENUE_INFO = {
-  name: '表参道テラス',
-  coverImage: 'https://picsum.photos/800/600?random=venue',
-  date: '2026.01.20',
-  enableLineUnlock: false, // 会場設定による機能制限フラグ
-};
+```sql
+CREATE INDEX idx_photos_wedding_id ON photos(wedding_id);
+CREATE INDEX idx_photos_table_id ON photos(table_id);
+CREATE INDEX idx_photos_uploaded_by ON photos(uploaded_by);
+CREATE INDEX idx_tables_wedding_id ON tables(wedding_id);
+CREATE INDEX idx_guests_wedding_id ON guests(wedding_id);
+CREATE INDEX idx_guests_table_id ON guests(table_id);
+CREATE INDEX idx_feedbacks_wedding_id ON feedbacks(wedding_id);
 ```
 
-**`lib/constants/venues.ts`**:
+### 5.4 実装手順
+
+1. **`lib/services/mock/` を `lib/services/` にリネーム**
+   ```bash
+   mv lib/services/mock lib/services/real
+   ```
+
+2. **各Serviceファイルの `BACKEND_TODO` コメントを実装に置き換え**
+
+3. **環境変数の設定**
+   - APIベースURL
+   - 認証トークンの取得方法
+   - Storage設定（Supabase等）
+
+4. **エラーハンドリングの追加**
+   - ネットワークエラー
+   - 認証エラー
+   - バリデーションエラー
+
+5. **型定義の確認**
+   - `lib/types/schema.ts` の型定義とAPIレスポンスが一致しているか確認
+
+---
+
+## 6. 環境変数 & 設定
+
+### 6.1 環境変数（`.env.local`）
+
+**現在の実装状況**: 環境変数ファイルは存在しません（未実装）
+
+**推奨される環境変数:**
+
+```bash
+# API設定
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
+NEXT_PUBLIC_API_URL=https://api.example.com
+
+# 認証設定
+NEXT_PUBLIC_AUTH_DOMAIN=auth.example.com
+
+# 外部サービス
+NEXT_PUBLIC_GOOGLE_MAPS_URL=https://www.google.com/maps
+NEXT_PUBLIC_LINE_ID=@your_line_id
+
+# Storage設定（Supabase等）
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
+SUPABASE_SERVICE_ROLE_KEY=xxx  # サーバーサイドのみ
+
+# その他
+NEXT_PUBLIC_APP_URL=https://app.example.com
+```
+
+### 6.2 定数ファイル
+
+#### 6.2.1 `lib/constants/venues.ts`
+
 ```typescript
 export const VENUE_INFO: Record<string, VenueInfo> = {
   'venue-001': { id: 'venue-001', name: '会場A' },
   'venue-002': { id: 'venue-002', name: '会場B' },
   'venue-003': { id: 'venue-003', name: '会場C' },
 };
+
+export const DEFAULT_VENUE_NAME = '不明な会場';
 ```
 
-### 5.2 API連携の有無
+**注意**: 現在はハードコードされていますが、将来的にはAPIから取得する想定です。
 
-**現状**: すべてモックデータを使用
+#### 6.2.2 `lib/constants/external.ts`
 
-- 実際のAPI呼び出しは未実装
-- `setTimeout` でアップロード処理をシミュレート
-- コメントに「実際のAPI呼び出しに置き換える」と記載
-- `lib/services/notificationService.ts` にAPI呼び出しの構造は定義されているが、実際の実装はモック
+```typescript
+export const GOOGLE_MAPS_URL = process.env.NEXT_PUBLIC_GOOGLE_MAPS_URL || 'https://www.google.com/maps';
+export const LINE_ID = process.env.NEXT_PUBLIC_LINE_ID || '@あなたのLINE_ID';
+```
 
-### 5.3 localStorage使用箇所
-
-- **レビュー完了状態**: `wedding_app_has_reviewed_${coupleId}`
-- **用途**: レビュー画面の重複表示を防止
-
-### 5.4 Context API使用箇所
-
-- **通知管理**: `lib/contexts/NotificationContext.tsx`
-- **用途**: プランナー管理画面での通知状態管理、未読件数の計算
+**注意**: 環境変数から取得する実装になっていますが、デフォルト値が設定されています。
 
 ---
 
-## 6. アーキテクチャパターンと設計思想
+## 7. 開発環境セットアップ
 
-### 6.1 通知システムのアーキテクチャパターン
+### 7.1 必要な環境
 
-**実装場所**: `app/(dashboard)/dashboard/(main)/[venueId]/notifications/page.tsx`
+- **Node.js**: 18.x 以上
+- **npm**: 9.x 以上（または yarn, pnpm）
 
-**パターン**: View-ViewModel-Repository パターン
+### 7.2 セットアップ手順
 
-- **View層**: `VenueNotificationsPage`（表示のみに専念）
-- **ViewModel層**: `useNotification`フック（`lib/hooks/useNotifications.ts`）
-  - 状態管理、ロジック管理
-  - オプティミスティックUI更新
-- **Repository層**: `notificationService`（`lib/services/notificationService.ts`）
-  - データ取得・更新の抽象化
-  - API呼び出しの構造定義
+```bash
+# 1. 依存関係のインストール
+npm install
 
-**メリット**:
-- テスト容易性の向上
-- 保守性の向上
-- ロジックの再利用性
+# 2. 開発サーバーの起動
+npm run dev
 
-### 6.2 コンポーネント設計
+# 3. ビルド（本番用）
+npm run build
 
-**原則**: 単一責任の原則
+# 4. 本番サーバーの起動
+npm start
 
-- **表示専用コンポーネント**: `NotificationHeader`, `NotificationList`, `NotificationCard`
-- **ロジック分離**: カスタムフック（`useNotification`）に委譲
-- **再利用性**: `ReviewSettings`コンポーネント（設定ページで使用）
+# 5. Lintチェック
+npm run lint
+```
 
-### 6.3 状態管理
+### 7.3 開発サーバー
 
-**原則**: 最小限の状態管理
+- **URL**: `http://localhost:3003`
+- **ポート**: 3003（`package.json` で設定）
 
-- **ローカル状態**: `useState`（コンポーネント内の状態）
-- **グローバル状態**: Context API（通知状態）
-- **サーバー状態**: 将来的にSWRやReact Queryを使用予定（コメントに記載）
+### 7.4 主要なスクリプト
 
-### 6.4 エラーハンドリング
-
-**原則**: ユーザーフレンドリーなエラー表示
-
-- **トースト通知**: `sonner`を使用
-- **バリデーション**: リアルタイムバリデーション（URL、メールアドレス）
-- **エラー状態の管理**: `useState`でエラー状態を管理
-
-### 6.5 パフォーマンス最適化
-
-**実装箇所**:
-- **メモ化**: `useMemo`（未読件数の計算、変更検知）
-- **コールバックメモ化**: `useCallback`（イベントハンドラ）
-- **レイジーローディング**: `Suspense`（通知ページ）
+| スクリプト | 説明 |
+|-----------|------|
+| `npm run dev` | 開発サーバー起動（ポート3003、ホスト0.0.0.0） |
+| `npm run build` | 本番用ビルド |
+| `npm start` | 本番サーバー起動（ポート3003） |
+| `npm run lint` | ESLintチェック |
 
 ---
 
-## 7. 引き継ぎ事項 / NEXT STEP
+## 8. 重要な注意事項
 
-### 7.1 TODOコメント（コード内に存在）
+### 8.1 未実装機能
 
-#### `app/couple/settings/page.tsx`
-```typescript
-// TODO: パスワード変更処理
-```
+以下の機能は**現在未実装**です：
 
-#### `app/couple/gallery/page.tsx`
-```typescript
-const coupleId = 1; // TODO: 実際のcoupleIdに置き換え（ダッシュボードと同じ値を使用）
-// ...
-googleMapsUrl="https://www.google.com/maps/place/example" // TODO: 実際のGoogle Maps URLに置き換え
-```
+1. **認証システム**: 現在はモック認証のみ
+2. **パスコード検証**: `app/(guest)/guest/(entry)/page.tsx` でハードコードされたパスコードを使用
+3. **環境変数の読み込み**: `.env` ファイルが存在しない
+4. **リアルタイム更新**: 写真のアップロードが他のユーザーにリアルタイムで反映されない
+5. **画像最適化**: Next.js Imageコンポーネントを使用していない箇所がある
 
-#### `app/(guest)/guest/(main)/gallery/page.tsx`
-```typescript
-const LINE_ID = '@あなたのLINE_ID'; // TODO: .envから取得するように変更
-const LINE_ADD_FRIEND_URL = 'https://line.me/R/ti/p/@your_line_id'; // TODO: 本番環境ではここに実際のLINE公式アカウントのURLを設定する
-```
+### 8.2 既知の制限事項
 
-#### `app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`
-```typescript
-// TODO: ドラッグ&ドロップによるゲスト割り当て
-// TODO: QRコードダウンロード機能
-```
+1. **モックデータの使用**: 多くの箇所で `MOCK_WEDDING_ID` や `MOCK_VENUE_ID` がハードコードされている
+2. **エラーハンドリング**: 一部のService関数でエラーハンドリングが不十分
+3. **型安全性**: 一部のコンポーネントで `any` 型が使用されている（修正済み）
 
-#### `app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`
-```typescript
-// TODO: 挙式作成機能
-```
+### 8.3 次のステップ（バックエンド開発者向け）
 
-#### `app/(dashboard)/layout.tsx`
-```typescript
-// TODO: 認証チェック（将来実装）
-// const session = await getSession();
-// if (!session) redirect('/dashboard/login');
-```
+1. **認証システムの実装**
+   - JWT認証またはSupabase Authの導入
+   - 各Service関数に認証トークンを渡す実装
 
-#### `lib/hooks/useNotifications.ts`
-```typescript
-// TODO: SWRやReact Queryを使用したキャッシュ・再検証
-// TODO: リアルタイム更新（WebSocket）
-// TODO: オプティミスティックUI更新
-```
+2. **APIエンドポイントの実装**
+   - `lib/services/mock/` 内の各関数に対応するAPIエンドポイントを作成
+   - RESTful API設計に従う
 
-### 7.2 次の開発者がまず着手すべきタスク
+3. **データベースの構築**
+   - 上記のスキーマ定義を参考にテーブルを作成
+   - インデックスの最適化
 
-1. **API連携の実装**
-   - モックデータを実際のAPI呼び出しに置き換える
-   - エラーハンドリングの追加
-   - ローディング状態の改善
-   - `lib/services/notificationService.ts`の実装
+4. **Storageの設定**
+   - Supabase StorageまたはAWS S3の設定
+   - 画像のアップロード・削除機能の実装
 
-2. **認証・認可の実装**
-   - `coupleId` の実際の取得方法
-   - セッション管理
-   - ロールベースアクセス制御（RBAC）
-   - `app/(dashboard)/layout.tsx`の認証チェック実装
-
-3. **環境変数の設定**
-   - LINE ID、Google Maps URL などの外部サービス連携情報を `.env` に移動
-   - 会場設定（`enableLineUnlock`）をデータベースから取得
-
-4. **データベース設計**
-   - Prismaスキーマ（`schema.prisma`）の確認と更新
-   - 実際のデータモデルとの整合性確認
-   - マイグレーションの実行
-
-5. **テストの追加**
-   - ユニットテスト（特にビジネスロジック）
-   - E2Eテスト（主要フロー）
-   - 通知システムのテスト（View-ViewModel-Repositoryパターン）
-
-6. **パフォーマンス最適化**
-   - SWRやReact Queryの導入（通知システム、挙式一覧など）
-   - 画像最適化（Next.js Imageコンポーネントの使用）
-   - コード分割（動的インポート）
-
-7. **機能追加**
-   - 挙式作成機能（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/page.tsx`）
-   - ドラッグ&ドロップによるゲスト割り当て（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`）
-   - QRコードダウンロード機能（`app/(dashboard)/dashboard/(main)/[venueId]/weddings/[id]/page.tsx`）
-   - リアルタイム通知（WebSocket）
-
-### 7.3 注意事項
-
-- **コードベースを正解として扱う**: このドキュメントは実際のコードに基づいて作成されています。会話の履歴ではなく、コードが Single Source of Truth です。
-- **モバイルファースト**: PC表示は最低限の考慮で問題ありません（管理画面はPC対応）。
-- **デザインの一貫性**: 
-  - スーパーアドミン: Indigo系
-  - プランナー管理画面: Emerald系
-  - 新郎新婦側: Emerald系
-  - ゲスト側: Stone系
-- **アーキテクチャパターンの維持**: 通知システムのView-ViewModel-Repositoryパターンを他の機能にも適用することを推奨します。
-- **型安全性**: TypeScriptの型定義を活用し、型安全性を維持してください。
-
-### 7.4 既知の制限事項
-
-1. **認証システム**: 現在は簡易認証（`app/page.tsx`）のみ実装。本番環境では適切な認証システム（NextAuth.js等）の実装が必要。
-2. **データ永続化**: 現在はすべてメモリ内の状態管理。データベースとの連携が必要。
-3. **画像ストレージ**: 現在はモックURLを使用。実際の画像ストレージ（S3等）との連携が必要。
-4. **リアルタイム更新**: 通知システムなど、リアルタイム更新が必要な機能は未実装。
-5. **エラーハンドリング**: 一部の機能でエラーハンドリングが不完全。
+5. **環境変数の設定**
+   - `.env.local` ファイルの作成
+   - 各環境（開発・ステージング・本番）での設定
 
 ---
 
-**このドキュメントは、実際のコードベース（2026年1月時点）に基づいて作成されました。**
+## 9. 参考資料
 
-**最終更新者**: AI Assistant  
-**最終更新日**: 2026年1月
+### 9.1 主要ファイル一覧
+
+| ファイルパス | 説明 |
+|------------|------|
+| `lib/types/schema.ts` | 共通型定義（最重要） |
+| `lib/services/mock/weddingService.ts` | 挙式情報のService層 |
+| `lib/services/mock/venueService.ts` | 会場情報のService層 |
+| `lib/services/mock/photoService.ts` | 写真のService層 |
+| `lib/services/mock/guestService.ts` | ゲスト情報のService層 |
+| `app/(guest)/guest/(onboarding)/survey/page.tsx` | レビューゲート機能 |
+| `app/(guest)/guest/(main)/gallery/page.tsx` | ゲストギャラリー |
+| `app/couple/tables/page.tsx` | 卓設定画面 |
+| `app/couple/gallery/page.tsx` | 新郎新婦ギャラリー |
+
+### 9.2 外部ライブラリのドキュメント
+
+- [Next.js App Router](https://nextjs.org/docs/app)
+- [Framer Motion](https://www.framer.com/motion/)
+- [Shadcn/ui](https://ui.shadcn.com/)
+- [Zod](https://zod.dev/)
+- [JSZip](https://stuk.github.io/jszip/)
+- [file-saver](https://github.com/eligrey/FileSaver.js/)
+
+---
+
+## 10. 連絡先・サポート
+
+**質問や不明点がある場合:**
+1. このドキュメントを再確認
+2. 実際のコード（特に `lib/types/schema.ts` と `lib/services/mock/`）を参照
+3. 必要に応じて開発チームに連絡
+
+---
+
+**最終更新**: 2024年12月  
+**ドキュメントバージョン**: 1.0.0

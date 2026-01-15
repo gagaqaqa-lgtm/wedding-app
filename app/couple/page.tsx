@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils/cn';
 import { Users, Grid, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PostWeddingThankYouCard } from '@/components/PostWeddingThankYouCard';
+import { getWeddingInfo, getWeddingTables, getWeddingDate } from '@/lib/services/mock/weddingService';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -42,16 +43,6 @@ const Icons = {
   ),
 };
 
-// モックデータ
-const MOCK_WEDDING = {
-  weddingDate: new Date('2026-03-15'),
-  tables: [
-    { id: 'table-a', name: 'A', isCompleted: true },
-    { id: 'table-b', name: 'B', isCompleted: true },
-    { id: 'table-c', name: 'C', isCompleted: false },
-  ],
-};
-
 // カウントダウン計算
 function calculateDaysUntil(targetDate: Date): number {
   const today = new Date();
@@ -63,9 +54,13 @@ function calculateDaysUntil(targetDate: Date): number {
   return diffDays > 0 ? diffDays : 0;
 }
 
+const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+
 export default function CoupleHomePage() {
   const router = useRouter();
-  const [daysUntil, setDaysUntil] = useState(calculateDaysUntil(MOCK_WEDDING.weddingDate));
+  const [weddingDate, setWeddingDate] = useState<Date | null>(null);
+  const [tables, setTables] = useState<Array<{ id: string; name: string; isCompleted: boolean }>>([]);
+  const [daysUntil, setDaysUntil] = useState(0);
   const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
   
   // 全員への写真の状態
@@ -81,9 +76,28 @@ export default function CoupleHomePage() {
   const [previewType, setPreviewType] = useState<'shared' | null>(null);
   const sharedFileInputRef = useRef<HTMLInputElement>(null);
 
+  // データの読み込み
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [wedding, weddingTables, date] = await Promise.all([
+          getWeddingInfo(MOCK_WEDDING_ID),
+          getWeddingTables(MOCK_WEDDING_ID),
+          getWeddingDate(MOCK_WEDDING_ID),
+        ]);
+        setWeddingDate(date);
+        setTables(weddingTables.map(t => ({ id: t.id, name: t.name, isCompleted: t.isCompleted })));
+        setDaysUntil(calculateDaysUntil(date));
+      } catch (error) {
+        console.error('Failed to load wedding data:', error);
+      }
+    };
+    loadData();
+  }, []);
+
   // 進捗計算
   const sharedCompleted = sharedPhotos.length > 0 || sharedMessage.length > 0;
-  const tableCompletedCount = MOCK_WEDDING.tables.filter(table => table.isCompleted).length;
+  const tableCompletedCount = tables.filter(table => table.isCompleted).length;
   
   // 2ステップ方式の完了判定
   const step1Completed = sharedCompleted;
@@ -92,11 +106,12 @@ export default function CoupleHomePage() {
 
   // 日付の更新
   useEffect(() => {
+    if (!weddingDate) return;
     const interval = setInterval(() => {
-      setDaysUntil(calculateDaysUntil(MOCK_WEDDING.weddingDate));
+      setDaysUntil(calculateDaysUntil(weddingDate));
     }, 1000 * 60 * 60);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   // 全員への写真のハンドラー
   const handleSharedClick = () => {
@@ -139,7 +154,7 @@ export default function CoupleHomePage() {
       <PostWeddingThankYouCard
         coupleId={coupleId}
         onReviewSubmit={async (rating, comment) => {
-          console.log('Review submitted:', { rating, comment });
+          // TODO: API経由でレビューを送信
           await new Promise(resolve => setTimeout(resolve, 1000));
         }}
         albumPath="/couple/gallery"

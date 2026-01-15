@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils/cn';
 import { motion } from 'framer-motion';
 import { Lock, Gift, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -46,8 +48,7 @@ const Icons = {
   ),
 };
 
-// 挙式日（ダッシュボードと同じ日付を使用）
-const MOCK_WEDDING_DATE = new Date('2026-03-15');
+const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
 
 // カウントダウン計算関数
 function calculateDaysUntil(targetDate: Date): number {
@@ -70,44 +71,52 @@ function formatWeddingDate(date: Date): string {
   return `${year}.${month}.${day} (${weekday})`;
 }
 
-// モックデータ
-const MOCK_PHOTOS = {
-  all: [
-    { id: '1', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&q=80', tableId: 'table-a', timestamp: new Date('2026-10-24T10:00:00'), isFavorite: false },
-    { id: '2', url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&q=80', tableId: null, timestamp: new Date('2026-10-24T11:00:00'), isFavorite: true },
-    { id: '3', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&q=80', tableId: 'table-c', timestamp: new Date('2026-10-24T12:00:00'), isFavorite: false },
-    { id: '4', url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&q=80', tableId: 'table-e', timestamp: new Date('2026-10-24T13:00:00'), isFavorite: true },
-  ],
-  byTable: {
-    'table-a': [
-      { id: '1', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&q=80', timestamp: new Date('2026-10-24T10:00:00'), isFavorite: false },
-    ],
-    'table-c': [
-      { id: '3', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&q=80', timestamp: new Date('2026-10-24T12:00:00'), isFavorite: false },
-    ],
-    'table-e': [
-      { id: '4', url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&q=80', timestamp: new Date('2026-10-24T13:00:00'), isFavorite: true },
-    ],
-  },
-  tables: [
-    { id: 'table-a', name: 'A卓' },
-    { id: 'table-c', name: 'C卓' },
-    { id: 'table-e', name: 'E卓' },
-  ],
-};
-
 type TabType = 'all' | 'table';
 
 export default function CoupleGalleryPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<Set<string>>(
-    new Set(MOCK_PHOTOS.all.filter(p => p.isFavorite).map(p => p.id))
-  );
+  const [weddingDate, setWeddingDate] = useState<Date | null>(null);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [tables, setTables] = useState<Array<{ id: string; name: string }>>([]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  
+  // データの読み込み
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [date, wedding, allPhotos] = await Promise.all([
+          getWeddingDate(MOCK_WEDDING_ID),
+          getWeddingInfo(MOCK_WEDDING_ID),
+          getPhotosByWedding(MOCK_WEDDING_ID),
+        ]);
+        setWeddingDate(date);
+        // 写真データを変換（Photo型から内部型へ）
+        const convertedPhotos = allPhotos.map(p => ({
+          id: p.id,
+          url: p.url,
+          tableId: p.tableId,
+          timestamp: new Date(p.uploadedAt),
+          isFavorite: p.isFavorite || false,
+        }));
+        setPhotos(convertedPhotos);
+        setFavorites(new Set(convertedPhotos.filter(p => p.isFavorite).map(p => p.id)));
+        setDaysRemaining(calculateDaysUntil(date));
+      } catch (error) {
+        console.error('Failed to load gallery data:', error);
+        // フォールバック: 今日の日付を使用
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        setWeddingDate(today);
+        setDaysRemaining(calculateDaysUntil(today));
+      }
+    };
+    loadData();
+  }, []);
   
   // 挙式日までの日数を計算
-  const [daysRemaining, setDaysRemaining] = useState(calculateDaysUntil(MOCK_WEDDING_DATE));
+  const [daysRemaining, setDaysRemaining] = useState(0);
   const isPreWedding = daysRemaining > 0;
   
   // レビューゲートの状態管理
@@ -118,7 +127,7 @@ export default function CoupleGalleryPage() {
   
   // ダウンロード待機モーダルの状態管理
   const [isDownloadWaitModalOpen, setIsDownloadWaitModalOpen] = useState(false);
-  const [pendingDownloadAction, setPendingDownloadAction] = useState<(() => void) | null>(null);
+  const [pendingDownloadAction, setPendingDownloadAction] = useState<(() => void | Promise<void>) | null>(null);
 
   // coupleId（モック: 実際はAPIや認証から取得）
   const coupleId = 1; // TODO: 実際のcoupleIdに置き換え（ダッシュボードと同じ値を使用）
@@ -152,11 +161,12 @@ export default function CoupleGalleryPage() {
 
   // 日付の更新（1時間ごと）
   useEffect(() => {
+    if (!weddingDate) return;
     const interval = setInterval(() => {
-      setDaysRemaining(calculateDaysUntil(MOCK_WEDDING_DATE));
+      setDaysRemaining(calculateDaysUntil(weddingDate));
     }, 1000 * 60 * 60);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   // ※以前あった `useEffect(() => { if (!hasReviewed) setIsReviewGateOpen(true); }, ...)` は削除済み
   // 競合の原因になります。
@@ -169,8 +179,8 @@ export default function CoupleGalleryPage() {
     });
   };
 
-  // モック: 写真がない状態をシミュレート（開発用にコメントアウト可能）
-  const hasPhotos = MOCK_PHOTOS.all.length > 0;
+  // 写真があるかどうか
+  const hasPhotos = photos.length > 0;
   // const hasPhotos = false; // エンプティステートを表示する場合はこちらを有効化
 
   // ローディング状態（モック: 実際はAPIから取得）
@@ -178,13 +188,13 @@ export default function CoupleGalleryPage() {
 
   // インフィード広告を含む写真リストを生成する関数
   // ルール: 最初の12枚目の直後に1つ目、以降24枚おきに挿入（写真が5枚以下は表示しない）
-  const createItemsWithAds = (photos: typeof MOCK_PHOTOS.all) => {
+  const createItemsWithAds = <T extends { id: string; url: string }>(photos: T[]) => {
     // 写真が5枚以下の場合は広告を表示しない
     if (photos.length <= 5) {
       return photos.map((photo) => ({ type: 'photo' as const, data: photo }));
     }
 
-    const items: Array<{ type: 'photo'; data: typeof photos[0] } | { type: 'ad'; index: number }> = [];
+    const items: Array<{ type: 'photo'; data: T } | { type: 'ad'; index: number }> = [];
     let adIndex = 0;
 
     photos.forEach((photo, index) => {
@@ -205,9 +215,9 @@ export default function CoupleGalleryPage() {
 
   // みんなの写真タブ用の広告付きリスト
   const itemsWithAds = useMemo(() => {
-    const photos = MOCK_PHOTOS.all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    return createItemsWithAds(photos);
-  }, [activeTab]);
+    const sortedPhotos = [...photos].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return createItemsWithAds(sortedPhotos);
+  }, [photos]);
 
   const handlePhotoClick = (photoId: string) => {
     setSelectedPhoto(photoId);
@@ -216,6 +226,17 @@ export default function CoupleGalleryPage() {
   const handleCloseLightbox = () => {
     setSelectedPhoto(null);
   };
+
+  // ESCキーでライトボックスを閉じる
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedPhoto) {
+        handleCloseLightbox();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [selectedPhoto]);
 
   const toggleFavorite = (photoId: string) => {
     setFavorites(prev => {
@@ -229,32 +250,145 @@ export default function CoupleGalleryPage() {
     });
   };
 
-  // サイレントダウンロード処理（現在のページに留まったままファイルをダウンロード）
-  const triggerSilentDownload = (url: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename; // download属性を付与（重要：これにより画面遷移を防ぐ）
-    link.style.display = 'none'; // 非表示
-    document.body.appendChild(link); // DOMに追加
-    link.click(); // クリックイベントを発火
-    // 少し遅延を入れてから削除（ダウンロードが確実に開始されるように）
-    setTimeout(() => {
-      document.body.removeChild(link);
-    }, 100);
+  /**
+   * 画像URLからBlobを取得するヘルパー関数
+   */
+  const fetchImageAsBlob = async (url: string): Promise<Blob> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    return response.blob();
   };
 
-  // 実際のダウンロード処理（個別）
-  const executeDownload = (url: string) => {
-    triggerSilentDownload(url, 'photo.jpg');
-  };
+  /**
+   * 単一画像のダウンロード処理（スマートフォン対応）
+   * 1. Web Share APIを優先的に使用（iOS/Android）
+   * 2. 非対応の場合はBlob形式で強制ダウンロード
+   */
+  const executeDownload = async (url: string) => {
+    try {
+      // 画像をBlobとして取得
+      const blob = await fetchImageAsBlob(url);
+      
+      // Web Share APIが利用可能な場合（モバイル端末）
+      if (navigator.share && navigator.canShare) {
+        try {
+          // Fileオブジェクトを作成
+          const file = new File([blob], 'photo.jpg', { type: blob.type });
+          
+          // Web Share APIで共有（「画像を保存」などが選べる）
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: '写真を保存',
+            });
+            toast.success('写真を共有しました', {
+              description: '共有メニューから「画像を保存」を選択してください',
+              duration: 3000,
+            });
+            return;
+          }
+        } catch (shareError: unknown) {
+          // ユーザーが共有をキャンセルした場合などはエラーを無視
+          if (shareError instanceof Error && shareError.name !== 'AbortError') {
+            console.warn('Web Share API failed, falling back to blob download:', shareError);
+          } else {
+            // キャンセルされた場合は処理を終了
+            return;
+          }
+        }
+      }
 
-  // 実際のダウンロード処理（一括）
-  const executeBulkDownload = () => {
-    MOCK_PHOTOS.all.forEach((photo, index) => {
+      // Web Share APIが使えない場合、または共有が失敗した場合
+      // Blob形式で強制ダウンロード
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = 'photo.jpg';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // クリーンアップ
       setTimeout(() => {
-        triggerSilentDownload(photo.url, `photo-${index + 1}.jpg`);
-      }, index * 100);
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+
+      toast.success('写真をダウンロードしました', {
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('ダウンロードに失敗しました', {
+        description: 'もう一度お試しください',
+        duration: 3000,
+      });
+    }
+  };
+
+  /**
+   * 一括ダウンロード処理（ZIPファイルとして）
+   * 全ての画像をZIPファイルにまとめて1回でダウンロード
+   */
+  const executeBulkDownload = async () => {
+    const loadingToastId = toast.loading('ZIPファイルを作成中...', {
+      description: '写真を読み込んでいます',
     });
+
+    try {
+      const zip = new JSZip();
+      const photosToDownload = photos;
+      
+      // 全ての画像を並列で取得してZIPに追加
+      const fetchPromises = photosToDownload.map(async (photo, index) => {
+        try {
+          const blob = await fetchImageAsBlob(photo.url);
+          // ファイル名を生成（IDまたはインデックスを使用）
+          const filename = `photo-${photo.id || index + 1}.jpg`;
+          zip.file(filename, blob);
+        } catch (error) {
+          console.warn(`Failed to fetch photo ${photo.id}:`, error);
+          // エラーが発生しても他の写真の処理は続行
+        }
+      });
+
+      // 全ての画像取得を待機
+      await Promise.allSettled(fetchPromises);
+
+      // ZIPファイルを生成
+      toast.loading('ZIPファイルを生成中...', {
+        id: loadingToastId,
+        description: 'しばらくお待ちください',
+      });
+
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }, // 圧縮レベル（1-9、6がバランス良い）
+      });
+
+      // ファイル名を生成（日付を含める）
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const filename = `wedding-photos-${dateStr}.zip`;
+
+      // file-saverでダウンロード
+      saveAs(zipBlob, filename);
+
+      toast.success('ZIPファイルのダウンロードを開始しました', {
+        id: loadingToastId,
+        description: `${photosToDownload.length}枚の写真が含まれています`,
+        duration: 4000,
+      });
+    } catch (error) {
+      console.error('Bulk download failed:', error);
+      toast.error('ZIPファイルの作成に失敗しました', {
+        id: loadingToastId,
+        description: 'もう一度お試しください',
+        duration: 3000,
+      });
+    }
   };
 
   const handleDownload = (url: string) => {
@@ -265,7 +399,12 @@ export default function CoupleGalleryPage() {
   
   const handleBulkDownload = () => {
     // ダウンロードボタンクリック時は直接待機モーダルを表示（口コミチェックなし）
-    setPendingDownloadAction(() => executeBulkDownload);
+    // 一括ダウンロードはZIP生成に時間がかかるため、async関数をラップ
+    setPendingDownloadAction(() => {
+      executeBulkDownload().catch((error) => {
+        console.error('Bulk download error:', error);
+      });
+    });
     setIsDownloadWaitModalOpen(true);
   };
 
@@ -277,9 +416,7 @@ export default function CoupleGalleryPage() {
     // ダウンロード待機モーダルは開かない（ダウンロードボタンを押した時だけ表示）
   };
 
-  const selectedPhotoData = activeTab === 'all'
-    ? MOCK_PHOTOS.all.find(p => p.id === selectedPhoto)
-    : Object.values(MOCK_PHOTOS.byTable).flat().find(p => p.id === selectedPhoto);
+  const selectedPhotoData = photos.find(p => p.id === selectedPhoto);
 
   // 挙式日前（Pre-Wedding）のロック画面
   if (isPreWedding) {
@@ -338,7 +475,7 @@ export default function CoupleGalleryPage() {
                 'text-xl md:text-2xl font-serif font-semibold',
                 'text-[#D4AF37] tracking-wide'
               )}>
-                {formatWeddingDate(MOCK_WEDDING_DATE)} The Big Day
+                {weddingDate ? formatWeddingDate(weddingDate) : '読み込み中...'} The Big Day
               </p>
             </div>
 
@@ -530,12 +667,12 @@ export default function CoupleGalleryPage() {
         ) : (
           /* 卓ごとの写真 */
           <div className="space-y-6">
-            {MOCK_PHOTOS.tables.map((table) => {
-              const photos = MOCK_PHOTOS.byTable[table.id as keyof typeof MOCK_PHOTOS.byTable] || [];
-              if (photos.length === 0) return null;
+            {tables.map((table) => {
+              const tablePhotos = photos.filter(p => p.tableId === table.id);
+              if (tablePhotos.length === 0) return null;
 
               // 卓ごとの写真にも広告を挿入（5枚以上の場合）
-              const tableItemsWithAds = createItemsWithAds(photos);
+              const tableItemsWithAds = createItemsWithAds(tablePhotos);
 
               return (
                 <div key={table.id}>
@@ -587,13 +724,31 @@ export default function CoupleGalleryPage() {
 
       {/* ライトボックス */}
       {selectedPhoto && selectedPhotoData && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4">
+          {/* 閉じるボタン（右上） */}
           <button
             onClick={handleCloseLightbox}
-            className="absolute top-4 right-4 text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+            className={cn(
+              "absolute top-4 right-4 z-[110]",
+              "p-3 rounded-full",
+              "bg-black/50 hover:bg-black/70",
+              "text-white",
+              "transition-all duration-200",
+              "shadow-lg hover:shadow-xl",
+              "active:scale-95",
+              "focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-black/50"
+            )}
+            aria-label="閉じる"
           >
             <Icons.X className="w-6 h-6" />
           </button>
+
+          {/* 背景クリックで閉じる */}
+          <div
+            className="absolute inset-0 -z-10"
+            onClick={handleCloseLightbox}
+            aria-label="閉じる"
+          />
 
           <div className="relative max-w-4xl max-h-full">
             <img
@@ -609,10 +764,12 @@ export default function CoupleGalleryPage() {
               onClick={() => toggleFavorite(selectedPhoto)}
               className={cn(
                 "p-4 rounded-full transition-all duration-200 active:scale-95",
+                "focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-black/50",
                 favorites.has(selectedPhoto)
-                  ? "bg-red-500 text-white"
+                  ? "bg-red-500 text-white hover:bg-red-600"
                   : "bg-white/20 text-white hover:bg-white/30"
               )}
+              aria-label={favorites.has(selectedPhoto) ? "お気に入りから削除" : "お気に入りに追加"}
             >
               <Icons.Heart
                 className="w-6 h-6"
@@ -621,9 +778,26 @@ export default function CoupleGalleryPage() {
             </button>
             <button
               onClick={() => handleDownload(selectedPhotoData.url)}
-              className="p-4 rounded-full bg-white/20 text-white hover:bg-white/30 transition-all duration-200 active:scale-95"
+              className={cn(
+                "p-4 rounded-full bg-white/20 text-white hover:bg-white/30",
+                "transition-all duration-200 active:scale-95",
+                "focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-black/50"
+              )}
+              aria-label="ダウンロード"
             >
               <Icons.Download className="w-6 h-6" />
+            </button>
+            {/* 閉じるボタン（下部にも追加） */}
+            <button
+              onClick={handleCloseLightbox}
+              className={cn(
+                "p-4 rounded-full bg-white/20 text-white hover:bg-white/30",
+                "transition-all duration-200 active:scale-95",
+                "focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-black/50"
+              )}
+              aria-label="閉じる"
+            >
+              <Icons.X className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -642,12 +816,35 @@ export default function CoupleGalleryPage() {
       {/* ダウンロード待機モーダル（広告付き） */}
       <DownloadWaitModal
         open={isDownloadWaitModalOpen}
-        onOpenChange={setIsDownloadWaitModalOpen}
-        onDownloadStart={() => {
-          if (pendingDownloadAction) {
-            pendingDownloadAction();
+        onOpenChange={(open) => {
+          setIsDownloadWaitModalOpen(open);
+          // モーダルが閉じられたときに、関連する状態もリセット
+          if (!open) {
             setPendingDownloadAction(null);
+            // ライトボックスも閉じる（ダウンロード完了後に開いたままにならないように）
+            setSelectedPhoto(null);
           }
+        }}
+        onDownloadStart={async () => {
+          if (pendingDownloadAction) {
+            try {
+              // 非同期関数の場合はawait、同期関数の場合はそのまま実行
+              const result = pendingDownloadAction();
+              // Promiseかどうかをチェック（型安全な方法）
+              if (result !== undefined && result !== null && typeof result === 'object' && 'then' in result && typeof result.then === 'function') {
+                await result;
+              }
+            } catch (error) {
+              console.error('Download action error:', error);
+            } finally {
+              setPendingDownloadAction(null);
+            }
+          }
+          // ダウンロード開始後、少し遅延してからモーダルを閉じる
+          setTimeout(() => {
+            setIsDownloadWaitModalOpen(false);
+            setSelectedPhoto(null); // ライトボックスも閉じる
+          }, 500);
         }}
         waitTime={5}
         adImageUrl="https://via.placeholder.com/600x400?text=New+Life+Advertisement"

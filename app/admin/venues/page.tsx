@@ -242,13 +242,13 @@ export default function VenuesPage() {
   };
 
   const handleLoginAsVenue = (venueId: string) => {
-    console.log('代理ログイン:', venueId);
+    // TODO: API経由で代理ログインを実行
     // TODO: 代理ログイン処理を実装
     // window.location.href = `/dashboard/${venueId}`;
   };
 
   const handleSuspend = (venueId: string) => {
-    console.log('アカウント停止:', venueId);
+    // TODO: API経由でアカウントを停止
     // TODO: 停止確認モーダルを開く
   };
 

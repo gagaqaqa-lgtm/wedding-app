@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 import { motion } from 'framer-motion';
+import { getWeddingDate } from '@/lib/services/mock/weddingService';
+import { getVenueInfo } from '@/lib/services/mock/venueService';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -44,13 +46,8 @@ const navItems: NavItem[] = [
   { label: 'みんなの写真', href: '/couple/gallery', icon: Icons.Images },
 ];
 
-// 挙式日のモックデータ（実際のアプリではAPIから取得）
-const MOCK_WEDDING_DATE = new Date('2026-03-15');
-
-// 式場のカバー写真（実際のアプリではAPIから取得）
-const MOCK_WEDDING = {
-  venueCoverImage: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80',
-};
+const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+const MOCK_VENUE_ID = 'venue-1'; // TODO: 認証情報から取得
 
 // カウントダウン計算
 function calculateDaysUntil(targetDate: Date): number {
@@ -75,16 +72,36 @@ function formatWeddingDate(date: Date): string {
 
 // ヒーローエリアコンポーネント
 function HeroCountdown() {
-  const [daysUntil, setDaysUntil] = useState(calculateDaysUntil(MOCK_WEDDING_DATE));
+  const [daysUntil, setDaysUntil] = useState(0);
+  const [venueCoverImage, setVenueCoverImage] = useState<string>('https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80');
+  const [weddingDate, setWeddingDate] = useState<Date | null>(null);
   const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
 
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [date, venue] = await Promise.all([
+          getWeddingDate(MOCK_WEDDING_ID),
+          getVenueInfo(MOCK_VENUE_ID),
+        ]);
+        setWeddingDate(date);
+        setVenueCoverImage(venue.coverImageUrl || 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80');
+        setDaysUntil(calculateDaysUntil(date));
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!weddingDate) return;
     // 日付の更新（1時間ごと）
     const interval = setInterval(() => {
-      setDaysUntil(calculateDaysUntil(MOCK_WEDDING_DATE));
+      setDaysUntil(calculateDaysUntil(weddingDate));
     }, 1000 * 60 * 60);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   return (
     <motion.section
@@ -96,7 +113,7 @@ function HeroCountdown() {
       {/* 背景画像: 式場のカバー写真 */}
       <div className="absolute inset-0">
         <img
-          src={MOCK_WEDDING.venueCoverImage}
+          src={venueCoverImage}
           alt="式場のカバー写真"
           className="w-full h-full object-cover"
         />
@@ -113,7 +130,7 @@ function HeroCountdown() {
           {!isWeddingDayOrAfter ? (
             <>
               <p className="text-xs md:text-sm text-white mb-1.5 font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                {formatWeddingDate(MOCK_WEDDING_DATE)}
+                {weddingDate ? formatWeddingDate(weddingDate) : '読み込み中...'}
               </p>
               <p className="text-sm md:text-base text-white mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">The Big Day</p>
               <div className="flex items-baseline justify-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">

@@ -11,6 +11,9 @@ import { PostWeddingThankYouCard } from '@/components/PostWeddingThankYouCard';
 import { motion } from 'framer-motion';
 import { ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '@/lib/services/api';
+import type { Table } from '@/lib/types/schema';
+import { getWeddingDate } from '@/lib/services/mock/weddingService';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -89,71 +92,84 @@ const Icons = {
   ),
 };
 
-// モックデータ
-const MOCK_WEDDING = {
-  weddingDate: new Date('2026-03-15'),
-  tables: [
-    // 1. 写真あり・完了状態 (A卓)
-    {
-      id: 'table-a',
-      name: 'A',
-      message: 'みんな久しぶり！今日は楽しんでいってね！',
-      photoUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=1887&auto=format&fit=crop',
-      photos: [] as File[],
-      isSkipped: false,
-      isCompleted: true,
-    },
-    // 2. 写真なし・完了状態 (B卓 - スキップ済み)
-    {
-      id: 'table-b',
-      name: 'B卓 (親族)',
-      message: '',
-      photoUrl: null,
-      photos: [] as File[],
-      isSkipped: true,
-      isCompleted: true,
-    },
-    // 3. 未完了状態 (C卓)
-    {
-      id: 'table-c',
-      name: 'C卓',
-      message: '',
-      photoUrl: null,
-      photos: [] as File[],
-      isCompleted: false,
-    },
-    // 4. 写真あり・完了状態 (D卓)
-    {
-      id: 'table-d',
-      name: 'D',
-      message: 'いつもありがとう！',
-      photoUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=1949&auto=format&fit=crop',
-      photos: [] as File[],
-      isSkipped: false,
-      isCompleted: true,
-    },
-    // 5. 写真なし・完了状態 (E卓 - スキップ済み)
-    {
-      id: 'table-e',
-      name: 'E',
-      message: '',
-      photoUrl: null,
-      photos: [] as File[],
-      isSkipped: true,
-      isCompleted: true,
-    },
-    // 6. 未完了状態 (F卓)
-    {
-      id: 'table-f',
-      name: 'F',
-      message: '',
-      photoUrl: null,
-      photos: [] as File[],
-      isSkipped: false,
-      isCompleted: false,
-    },
-  ],
-};
+// モックデータ（挙式日のみ）
+const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+
+// モックデータ（初期データ、APIから取得する想定）
+const INITIAL_TABLES: Table[] = [
+  // 1. 写真あり・完了状態 (A卓)
+  {
+    id: 'table-a',
+    name: 'A',
+    message: 'みんな久しぶり！今日は楽しんでいってね！',
+    photoUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=1887&auto=format&fit=crop',
+    isSkipped: false,
+    isCompleted: true,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // 2. 写真なし・完了状態 (B卓 - スキップ済み)
+  {
+    id: 'table-b',
+    name: 'B卓 (親族)',
+    message: '',
+    photoUrl: null,
+    isSkipped: true,
+    isCompleted: true,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // 3. 未完了状態 (C卓)
+  {
+    id: 'table-c',
+    name: 'C卓',
+    message: '',
+    photoUrl: null,
+    isSkipped: false,
+    isCompleted: false,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // 4. 写真あり・完了状態 (D卓)
+  {
+    id: 'table-d',
+    name: 'D',
+    message: 'いつもありがとう！',
+    photoUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=1949&auto=format&fit=crop',
+    isSkipped: false,
+    isCompleted: true,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // 5. 写真なし・完了状態 (E卓 - スキップ済み)
+  {
+    id: 'table-e',
+    name: 'E',
+    message: '',
+    photoUrl: null,
+    isSkipped: true,
+    isCompleted: true,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // 6. 未完了状態 (F卓)
+  {
+    id: 'table-f',
+    name: 'F',
+    message: '',
+    photoUrl: null,
+    isSkipped: false,
+    isCompleted: false,
+    weddingId: MOCK_WEDDING_ID,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
 
 // カウントダウン計算
 function calculateDaysUntil(targetDate: Date): number {
@@ -167,18 +183,40 @@ function calculateDaysUntil(targetDate: Date): number {
 }
 
 export default function CoupleTablesPage() {
-  const [daysUntil, setDaysUntil] = useState(calculateDaysUntil(MOCK_WEDDING.weddingDate));
-  const [tables, setTables] = useState(MOCK_WEDDING.tables);
+  const [weddingDate, setWeddingDate] = useState<Date | null>(null);
+  const [daysUntil, setDaysUntil] = useState(0);
+  const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
+  const [isLoading, setIsLoading] = useState(false);
   
   // 式前/式後の判定（当日以降は式後とみなす）
   const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
+  
+  // 挙式日の読み込み
+  useEffect(() => {
+    const loadWeddingDate = async () => {
+      try {
+        const date = await getWeddingDate(MOCK_WEDDING_ID);
+        setWeddingDate(date);
+        setDaysUntil(calculateDaysUntil(date));
+      } catch (error) {
+        console.error('Failed to load wedding date:', error);
+        // フォールバック: 今日の日付を使用
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        setWeddingDate(today);
+        setDaysUntil(calculateDaysUntil(today));
+      }
+    };
+    loadWeddingDate();
+  }, []);
   
   // 卓ごとの設定の状態
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [isTableSheetOpen, setIsTableSheetOpen] = useState(false);
   const [currentTableName, setCurrentTableName] = useState('');
   const [currentMessage, setCurrentMessage] = useState('');
-  const [currentPhotos, setCurrentPhotos] = useState<File[]>([]);
+  const [currentPhotos, setCurrentPhotos] = useState<File[]>([]); // アップロード前の一時的なファイル
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null); // アップロード済みの写真URL
   
   // 共通の状態
   const [isUploading, setIsUploading] = useState(false);
@@ -202,13 +240,38 @@ export default function CoupleTablesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showComplianceModal]);
 
+  // 初期データの取得（実際の実装ではAPIから取得）
+  useEffect(() => {
+    const loadTables = async () => {
+      setIsLoading(true);
+      try {
+        // TODO: 実際のweddingIdを取得（認証情報から）
+        const fetchedTables = await api.getTables(MOCK_WEDDING_ID);
+        setTables(fetchedTables);
+      } catch (error) {
+        console.error('Failed to load tables:', error);
+        toast.error('卓情報の取得に失敗しました', {
+          description: 'もう一度お試しください',
+          duration: 3000,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // 初期データはINITIAL_TABLESを使用（開発用）
+    // 本番環境では loadTables() を呼び出す
+    // loadTables();
+  }, []);
+
   // 日付の更新
   useEffect(() => {
+    if (!weddingDate) return;
     const interval = setInterval(() => {
-      setDaysUntil(calculateDaysUntil(MOCK_WEDDING.weddingDate));
+      setDaysUntil(calculateDaysUntil(weddingDate));
     }, 1000 * 60 * 60);
     return () => clearInterval(interval);
-  }, []);
+  }, [weddingDate]);
 
   // Celebration Mode: 当日以降は紙吹雪を表示
   useEffect(() => {
@@ -250,7 +313,8 @@ export default function CoupleTablesPage() {
       setSelectedTable(tableId);
       setCurrentTableName(table.name);
       setCurrentMessage(table.message);
-      setCurrentPhotos(table.photos);
+      setCurrentPhotoUrl(table.photoUrl);
+      setCurrentPhotos([]); // 編集時は空にリセット
       setIsTableSheetOpen(true);
     }
   };
@@ -308,16 +372,54 @@ export default function CoupleTablesPage() {
     
     setIsUploading(true);
     
-    // モック: 保存処理
-    setTimeout(() => {
+    try {
+      // 写真が選択されている場合、アップロード処理
+      let photoUrl = currentPhotoUrl;
+      
+      if (currentPhotos.length > 0) {
+        // TODO: 実際のuserIdを取得（認証情報から）
+        const userId = 'couple-1';
+        
+        // 最初の写真のみをアップロード（卓用の写真は1枚）
+        const uploadedPhoto = await api.uploadPhoto(
+          currentPhotos[0],
+          MOCK_WEDDING_ID,
+          selectedTable,
+          userId
+        );
+        photoUrl = uploadedPhoto.url;
+      }
+      
+      // 卓情報を更新
+      const updatedTable = await api.updateTable(selectedTable, {
+        name: currentTableName,
+        message: currentMessage,
+        photoUrl: photoUrl,
+        isSkipped: false,
+        isCompleted: true, // メッセージまたは写真が設定されたら完了
+      });
+      
+      // ローカル状態を更新
       setTables(prev => prev.map(table => 
-        table.id === selectedTable
-          ? { ...table, name: currentTableName, message: currentMessage, photos: currentPhotos, isSkipped: false }
-          : table
+        table.id === selectedTable ? updatedTable : table
       ));
+      
       setIsUploading(false);
       setIsTableSheetOpen(false);
-    }, 1500);
+      setCurrentPhotos([]); // リセット
+      
+      toast.success('設定を保存しました', {
+        description: 'ゲストに公開されます',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to save table:', error);
+      toast.error('保存に失敗しました', {
+        description: 'もう一度お試しください',
+        duration: 3000,
+      });
+      setIsUploading(false);
+    }
   };
 
   const handleSkipTable = async () => {
@@ -325,16 +427,29 @@ export default function CoupleTablesPage() {
     
     setIsUploading(true);
     
-    // モック: スキップ処理
-    setTimeout(() => {
+    try {
+      // 卓をスキップ
+      const updatedTable = await api.skipTable(selectedTable);
+      
+      // ローカル状態を更新
       setTables(prev => prev.map(table => 
-        table.id === selectedTable
-          ? { ...table, isSkipped: true, message: '', photos: [] }
-          : table
+        table.id === selectedTable ? updatedTable : table
       ));
+      
       setIsUploading(false);
       setIsTableSheetOpen(false);
-    }, 500);
+      
+      toast.success('共通写真を使用する設定にしました', {
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to skip table:', error);
+      toast.error('設定の更新に失敗しました', {
+        description: 'もう一度お試しください',
+        duration: 3000,
+      });
+      setIsUploading(false);
+    }
   };
 
   const handlePreview = (type: 'table') => {
@@ -342,7 +457,7 @@ export default function CoupleTablesPage() {
     setIsPreviewOpen(true);
   };
 
-  // 進捗計算
+  // 進捗計算（APIから取得したデータに基づく）
   const completedTables = tables.filter(table => 
     table.isCompleted === true || table.isSkipped === true
   ).length;
@@ -357,7 +472,7 @@ export default function CoupleTablesPage() {
       <PostWeddingThankYouCard
         coupleId={coupleId}
         onReviewSubmit={async (rating, comment) => {
-          console.log('Review submitted:', { rating, comment });
+          // TODO: API経由でレビューを送信
           await new Promise(resolve => setTimeout(resolve, 1000));
         }}
         albumPath="/couple/gallery"
@@ -578,8 +693,27 @@ export default function CoupleTablesPage() {
               />
 
               {/* 選択された写真のプレビュー */}
-              {currentPhotos.length > 0 && (
+              {(currentPhotoUrl || currentPhotos.length > 0) && (
                 <div className="mt-4 grid grid-cols-3 gap-3">
+                  {/* 既存の写真URLがある場合 */}
+                  {currentPhotoUrl && (
+                    <div className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                        <img
+                          src={currentPhotoUrl}
+                          alt="既存の写真"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setCurrentPhotoUrl(null)}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity active:scale-95"
+                      >
+                        <Icons.X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  {/* 新規選択されたファイル */}
                   {currentPhotos.map((photo, index) => (
                     <div key={index} className="relative group">
                       <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
@@ -604,7 +738,7 @@ export default function CoupleTablesPage() {
             {/* プレビューボタン */}
             <button
               onClick={() => handlePreview('table')}
-              disabled={currentPhotos.length === 0 && currentMessage.length === 0}
+              disabled={(currentPhotoUrl === null && currentPhotos.length === 0) && currentMessage.length === 0}
               className={cn(
                 "w-full h-12 rounded-xl font-semibold text-emerald-600 text-base",
                 "border-2 border-emerald-300 bg-emerald-50",
@@ -687,8 +821,19 @@ export default function CoupleTablesPage() {
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{currentMessage}</p>
                     </div>
                   )}
-                  {currentPhotos.length > 0 ? (
+                  {(currentPhotoUrl || currentPhotos.length > 0) ? (
                     <div className="space-y-3">
+                      {/* 既存の写真URL */}
+                      {currentPhotoUrl && (
+                        <div className="rounded-lg overflow-hidden">
+                          <img
+                            src={currentPhotoUrl}
+                            alt="既存の写真"
+                            className="w-full h-auto"
+                          />
+                        </div>
+                      )}
+                      {/* 新規選択されたファイル */}
                       {currentPhotos.map((photo, index) => (
                         <div key={index} className="rounded-lg overflow-hidden">
                           <img

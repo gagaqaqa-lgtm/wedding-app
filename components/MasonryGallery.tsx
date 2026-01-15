@@ -9,7 +9,7 @@ interface PhotoItem {
   id: string | number;
   url: string;
   alt?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AdItem {

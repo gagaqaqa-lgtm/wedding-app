@@ -9,6 +9,10 @@ import confetti from 'canvas-confetti';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { api } from '@/lib/services/api';
+import type { Photo } from '@/lib/types/schema';
+import { getVenueInfo } from '@/lib/services/mock/venueService';
+import { getWeddingInfo } from '@/lib/services/mock/weddingService';
 
 // LINE ID（環境変数または定数で管理する想定）
 const LINE_ID = '@あなたのLINE_ID'; // TODO: .envから取得するように変更
@@ -17,13 +21,8 @@ const LINE_ID = '@あなたのLINE_ID'; // TODO: .envから取得するように
 // TODO: 本番環境ではここに実際のLINE公式アカウントのURLを設定する
 const LINE_ADD_FRIEND_URL = 'https://line.me/R/ti/p/@your_line_id';
 
-// 会場データ（将来的にDBから取得する想定）
-const VENUE_INFO = {
-  name: '表参道テラス',
-  coverImage: 'https://picsum.photos/800/600?random=venue',
-  date: '2026.01.20',
-  enableLineUnlock: false, // LINE連携による投稿制限解除機能の有効/無効（テスト用: false で無効、true で有効）
-};
+const MOCK_VENUE_ID = 'venue-1'; // TODO: URLパラメータまたは認証情報から取得
+const MOCK_WEDDING_ID = 'wedding-1'; // TODO: URLパラメータまたは認証情報から取得
 
 // コンフェッティの色
 const CONFETTI_COLORS = [
@@ -44,12 +43,12 @@ function GalleryContent() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLineModal, setShowLineModal] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
-  const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
-  const [viewingImage, setViewingImage] = useState<{ id: number; url: string; alt: string } | null>(null);
-  const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [viewingImage, setViewingImage] = useState<{ id: string; url: string; alt: string } | null>(null);
+  const [imageLoading, setImageLoading] = useState<Record<string, boolean>>({});
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [newPhotoIds, setNewPhotoIds] = useState<Set<number>>(new Set());
+  const [newPhotoIds, setNewPhotoIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('couple');
   // 投稿枚数制限関連
   const [uploadedCount, setUploadedCount] = useState(5); // 初期値5（上限到達済み - テスト用）
@@ -62,6 +61,36 @@ function GalleryContent() {
   const [showComplianceModal, setShowComplianceModal] = useState(false);
   const [hasAgreedToCompliance, setHasAgreedToCompliance] = useState(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  // 会場・挙式データ
+  const [venueInfo, setVenueInfo] = useState<{ name: string; coverImage: string; enableLineUnlock: boolean } | null>(null);
+  const [weddingWelcomeImage, setWeddingWelcomeImage] = useState<string | null>(null);
+
+  // 会場・挙式データの読み込み
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [venue, wedding] = await Promise.all([
+          getVenueInfo(MOCK_VENUE_ID),
+          getWeddingInfo(MOCK_WEDDING_ID),
+        ]);
+        setVenueInfo({
+          name: venue.name,
+          coverImage: venue.coverImageUrl || 'https://picsum.photos/800/600?random=venue',
+          enableLineUnlock: venue.enableLineUnlock || false,
+        });
+        setWeddingWelcomeImage(wedding.welcomeImageUrl || null);
+      } catch (error) {
+        console.error('Failed to load venue/wedding data:', error);
+        // フォールバック
+        setVenueInfo({
+          name: '表参道テラス',
+          coverImage: 'https://picsum.photos/800/600?random=venue',
+          enableLineUnlock: false,
+        });
+      }
+    };
+    loadData();
+  }, []);
 
   // プレビューURLのクリーンアップ（モーダルが閉じられたとき）
   useEffect(() => {
@@ -98,11 +127,11 @@ function GalleryContent() {
   };
 
   // 画像読み込みハンドラ
-  const handleImageLoad = (photoId: number) => {
+  const handleImageLoad = (photoId: string) => {
     setImageLoading((prev) => ({ ...prev, [photoId]: false }));
   };
 
-  const handleImageStartLoad = (photoId: number) => {
+  const handleImageStartLoad = (photoId: string) => {
     setImageLoading((prev) => ({ ...prev, [photoId]: true }));
   };
 
@@ -162,10 +191,10 @@ function GalleryContent() {
     }
   };
 
-  const handleImageToggle = (photo: { id: number; url: string; alt: string }) => {
+  const handleImageToggle = (photo: { id: string; url: string; alt: string }) => {
     if (!isSelectMode) {
       // 通常モード：拡大表示
-      setViewingImage(photo);
+      setViewingImage({ id: photo.id, url: photo.url, alt: photo.alt });
       return;
     }
 
@@ -180,7 +209,7 @@ function GalleryContent() {
   };
 
   // 画像の右クリック/長押し時のLINE誘導
-  const handleImageContextMenu = (e: React.MouseEvent, photo: { id: number; url: string; alt: string }) => {
+  const handleImageContextMenu = (e: React.MouseEvent, photo: { id: string; url: string; alt: string }) => {
     e.preventDefault();
     setShowLineModal(true);
   };
@@ -194,9 +223,10 @@ function GalleryContent() {
   const handleNextImage = () => {
     if (!viewingImage) return;
     const photos = getCurrentPhotos();
-    const currentIndex = photos.findIndex((p) => p.id === viewingImage.id);
+    const currentIndex = photos.findIndex((p) => String(p.id) === String(viewingImage.id));
     const nextIndex = (currentIndex + 1) % photos.length;
-    setViewingImage(photos[nextIndex]);
+    const nextPhoto = photos[nextIndex];
+    setViewingImage({ id: String(nextPhoto.id), url: nextPhoto.url, alt: nextPhoto.alt });
     x.set(0);
     y.set(0);
   };
@@ -204,9 +234,10 @@ function GalleryContent() {
   const handlePrevImage = () => {
     if (!viewingImage) return;
     const photos = getCurrentPhotos();
-    const currentIndex = photos.findIndex((p) => p.id === viewingImage.id);
+    const currentIndex = photos.findIndex((p) => String(p.id) === String(viewingImage.id));
     const prevIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
-    setViewingImage(photos[prevIndex]);
+    const prevPhoto = photos[prevIndex];
+    setViewingImage({ id: String(prevPhoto.id), url: prevPhoto.url, alt: prevPhoto.alt });
     x.set(0);
     y.set(0);
   };
@@ -222,85 +253,123 @@ function GalleryContent() {
     }))
   );
 
-  // この卓のゲストがアップロードした写真（ダミーデータ: 5〜6枚）
-  const [tablePhotos, setTablePhotos] = useState<Array<{ id: number; url: string; alt: string; source: 'table'; isMyPhoto?: boolean }>>([
-    {
-      id: 1001,
-      url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
-      alt: '楽しそうな飲み会の様子 1',
-      source: 'table' as const,
-      isMyPhoto: true, // 自分の写真（削除可能）
-    },
-    {
-      id: 1002,
-      url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
-      alt: '美味しそうな料理の写真 1',
-      source: 'table' as const,
-      // isMyPhoto: false（他人の写真 - 削除不可）
-    },
-    {
-      id: 1003,
-      url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
-      alt: '楽しそうな飲み会の様子 2',
-      source: 'table' as const,
-      isMyPhoto: true, // 自分の写真（削除可能）
-    },
-    {
-      id: 1004,
-      url: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=80',
-      alt: '美味しそうな料理の写真 2',
-      source: 'table' as const,
-      // isMyPhoto: false（他人の写真 - 削除不可）
-    },
-    {
-      id: 1005,
-      url: 'https://images.unsplash.com/photo-1460306855393-0410f61241c7?w=800&q=80',
-      alt: '楽しそうな飲み会の様子 3',
-      source: 'table' as const,
-      isMyPhoto: true, // 自分の写真（削除可能）
-    },
-    {
-      id: 1006,
-      url: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800&q=80',
-      alt: '美味しそうな料理の写真 3',
-      source: 'table' as const,
-      // isMyPhoto: false（他人の写真 - 削除不可）
-    },
-  ]);
+  // この卓のゲストがアップロードした写真（APIから取得）
+  const [tablePhotos, setTablePhotos] = useState<Photo[]>([]);
+  
+  // 初期データの読み込み（実際の実装ではAPIから取得）
+  useEffect(() => {
+    const loadPhotos = async () => {
+      if (tableID) {
+        try {
+          // TODO: 実際のweddingIdを取得（認証情報から）
+          const weddingId = 'wedding-1';
+          const photos = await api.getPhotosByTable(tableID);
+          setTablePhotos(photos);
+        } catch (error) {
+          console.error('Failed to load photos:', error);
+        }
+      }
+    };
+    
+    // 開発用: モックデータを設定
+    // 本番環境では loadPhotos() を呼び出す
+    // loadPhotos();
+    
+    // モックデータ（開発用）
+    setTablePhotos([
+      {
+        id: '1001',
+        url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
+        alt: '楽しそうな飲み会の様子 1',
+        source: 'table',
+        weddingId: 'wedding-1',
+        tableId: tableID || null,
+        uploadedBy: 'guest-1',
+        isMyPhoto: true,
+        uploadedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: '1002',
+        url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80',
+        alt: '美味しそうな料理の写真 1',
+        source: 'table',
+        weddingId: 'wedding-1',
+        tableId: tableID || null,
+        uploadedBy: 'guest-2',
+        isMyPhoto: false,
+        uploadedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+  }, [tableID]);
 
   // 現在のタブに応じた写真リストを取得
-  type PhotoType = { id: number; url: string; alt: string; isMyPhoto?: boolean };
+  // ゲスト側のUI用の型（Photo型を変換）
+  type PhotoType = { id: string; url: string; alt: string; isMyPhoto?: boolean };
   const getCurrentPhotos = (): PhotoType[] => {
-    return activeTab === 'couple' ? couplePhotos : tablePhotos;
+    if (activeTab === 'couple') {
+      // 新郎新婦からの写真（モックデータ）
+      return couplePhotos.map(p => ({ id: String(p.id), url: p.url, alt: p.alt }));
+    } else {
+      // この卓の写真（APIから取得）
+      return tablePhotos.map(p => ({
+        id: p.id,
+        url: p.url,
+        alt: p.alt || '写真',
+        isMyPhoto: p.isMyPhoto,
+      }));
+    }
   };
   const currentPhotos = getCurrentPhotos();
   
   // 削除処理
-  const handleDeletePhoto = () => {
+  const handleDeletePhoto = async () => {
     if (!viewingImage) return;
     
     // 現在のタブに応じて削除
     if (activeTab === 'table') {
-      const deletedPhoto = tablePhotos.find((p) => p.id === viewingImage.id);
-      setTablePhotos((prev) => prev.filter((p) => p.id !== viewingImage.id));
-      
-      // 自分の写真を削除した場合、投稿数を減らす
-      if (deletedPhoto?.isMyPhoto) {
-        setUploadedCount((prev) => Math.max(0, prev - 1));
+      try {
+        // TODO: 実際のuserIdを取得（認証情報から）
+        const userId = 'guest-1';
+        
+        // API経由で削除
+        await api.deletePhoto(viewingImage.id, userId);
+        
+        // ローカル状態を更新
+        const deletedPhoto = tablePhotos.find((p) => p.id === viewingImage.id);
+        setTablePhotos((prev) => prev.filter((p) => p.id !== viewingImage.id));
+        
+        // 自分の写真を削除した場合、投稿数を減らす
+        if (deletedPhoto?.isMyPhoto) {
+          setUploadedCount((prev) => Math.max(0, prev - 1));
+        }
+        
+        // ライトボックスを閉じる
+        handleCloseLightbox();
+        
+        // 削除確認ダイアログを閉じる
+        setShowDeleteConfirm(false);
+        
+        // フィードバック: トースト通知
+        toast.success('写真を削除しました', {
+          description: '削除された写真は復元できません',
+          duration: 3000,
+        });
+      } catch (error) {
+        console.error('Failed to delete photo:', error);
+        toast.error('削除に失敗しました', {
+          description: 'もう一度お試しください',
+          duration: 3000,
+        });
       }
+    } else {
+      // 新郎新婦からの写真は削除不可
+      handleCloseLightbox();
+      setShowDeleteConfirm(false);
     }
-    
-    // ライトボックスを閉じる
-    handleCloseLightbox();
-    
-    // 削除確認ダイアログを閉じる
-    setShowDeleteConfirm(false);
-    
-    // フィードバック: トースト通知
-    toast.success('写真を削除しました', {
-      description: '削除された写真は復元できません',
-      duration: 3000,
-    });
   };
 
   // パーティクルエフェクト（紙吹雪）をトリガー
@@ -351,13 +420,12 @@ function GalleryContent() {
     // 既に上限に達している場合、または新規アップロードで上限を超える場合
     if ((uploadedCount >= UPLOAD_LIMIT || newUploadedCount > UPLOAD_LIMIT) && !isLineConnected) {
       // 会場設定による分岐
-      if (VENUE_INFO.enableLineUnlock) {
+      if (venueInfo?.enableLineUnlock) {
         // パターンA: LINE連携機能が有効な場合、制限解除モーダルを表示
         setShowLimitModal(true);
       } else {
         // パターンB: LINE連携機能が無効な場合、エラートーストを表示
-        toast.error('投稿枚数の上限に達しました', {
-          description: `投稿可能な枚数は${UPLOAD_LIMIT}枚までです。これ以上はアップロードできません。`,
+        toast.error('申し訳ありません。投稿枚数の上限（5枚）に達しました。', {
           duration: 4000,
         });
       }
@@ -395,29 +463,26 @@ function GalleryContent() {
     setIsUploading(true);
 
     try {
-      // アップロード処理をシミュレート（実際のAPI呼び出しに置き換える）
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // TODO: 実際のweddingIdとuserIdを取得（認証情報から）
+      const weddingId = 'wedding-1';
+      const userId = 'guest-1';
+      
+      // API経由で写真をアップロード
+      const uploadedPhotos = await api.uploadPhotos(
+        selectedFiles,
+        weddingId,
+        tableID || null,
+        userId
+      );
 
-      // アップロードされた写真を配列に追加
-      const newPhotos = selectedFiles.map((file, index) => {
-        const newId = (tablePhotos.length > 0 ? Math.max(...tablePhotos.map(p => p.id)) : 0) + index + 1;
-        const objectUrl = URL.createObjectURL(file);
-        return {
-          id: newId,
-          url: objectUrl,
-          alt: file.name || `アップロード写真 ${newId}`,
-          source: 'table' as const,
-          isMyPhoto: true, // アップロードした写真は自分の写真としてマーク
-        };
-      });
-
-      setTablePhotos((prev) => [...prev, ...newPhotos]);
+      // ローカル状態を更新
+      setTablePhotos((prev) => [...prev, ...uploadedPhotos]);
       
       // 投稿数を更新
       setUploadedCount((prev) => prev + selectedFiles.length);
       
       // 新しい写真のIDを記録（アニメーション用）
-      const newIds = newPhotos.map((p) => p.id);
+      const newIds = uploadedPhotos.map((p) => p.id);
       setNewPhotoIds(new Set(newIds));
 
       // リッチなトースト通知を表示
@@ -444,6 +509,7 @@ function GalleryContent() {
       setSelectedFiles([]);
       setHasAgreedToCompliance(false);
     } catch (error) {
+      console.error('Failed to upload photos:', error);
       toast.error('アップロードに失敗しました', {
         description: 'もう一度お試しください。',
         duration: 3000,
@@ -1125,7 +1191,7 @@ function GalleryContent() {
       </Dialog>
 
       {/* 制限解除モーダル（LINE連携機能が有効な場合のみ表示） */}
-      {VENUE_INFO.enableLineUnlock && (
+      {venueInfo?.enableLineUnlock && (
         <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -1179,8 +1245,8 @@ function GalleryContent() {
             {/* 背景画像 */}
             <div className="absolute inset-0">
               <img
-                src={VENUE_INFO.coverImage}
-                alt={VENUE_INFO.name}
+                src={venueInfo?.coverImage || 'https://picsum.photos/800/600?random=venue'}
+                alt={venueInfo?.name || '会場'}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent" />
@@ -1276,13 +1342,13 @@ function GalleryContent() {
                   <div className="grid grid-cols-3 gap-1">
                     {itemsWithAds.map((item, index) => {
                       if (item.type === 'photo') {
-                        const isSelected = selectedImageIds.includes(item.data.id);
+                        const isSelected = selectedImageIds.includes(String(item.data.id));
                         return (
                           <motion.div
                             key={`photo-${item.data.id}`}
-                            initial={newPhotoIds.has(item.data.id) ? { opacity: 0, scale: 0.8, y: 20 } : { opacity: 0, scale: 0.9 }}
+                            initial={newPhotoIds.has(String(item.data.id)) ? { opacity: 0, scale: 0.8, y: 20 } : { opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={newPhotoIds.has(item.data.id) 
+                            transition={newPhotoIds.has(String(item.data.id)) 
                               ? { 
                                   type: 'spring', 
                                   stiffness: 200, 
@@ -1291,17 +1357,17 @@ function GalleryContent() {
                                 }
                               : { delay: index * 0.02 }
                             }
-                            onClick={() => handleImageToggle(item.data)}
+                            onClick={() => handleImageToggle({ id: String(item.data.id), url: item.data.url, alt: item.data.alt })}
                             className={`aspect-square bg-stone-200 overflow-hidden relative transition-all duration-200 rounded-sm ${
                               isSelectMode
                                 ? 'active:opacity-80 cursor-pointer hover:scale-105'
                                 : 'active:opacity-80 cursor-pointer hover:scale-105'
                             } shadow-md hover:shadow-xl`}
                           >
-                            {(imageLoading[item.data.id] === undefined || imageLoading[item.data.id] === true) && (
+                            {(imageLoading[String(item.data.id)] === undefined || imageLoading[String(item.data.id)] === true) && (
                               <motion.div 
                                 initial={{ opacity: 1 }}
-                                animate={{ opacity: imageLoading[item.data.id] === false ? 0 : 1 }}
+                                animate={{ opacity: imageLoading[String(item.data.id)] === false ? 0 : 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.3 }}
                                 className="absolute inset-0 bg-gradient-to-br from-stone-200 to-stone-300 animate-pulse flex items-center justify-center z-10"
@@ -1315,11 +1381,11 @@ function GalleryContent() {
                               src={item.data.url}
                               alt={item.data.alt}
                               className={`w-full h-full object-cover transition-opacity duration-300 ${
-                                imageLoading[item.data.id] === false ? 'opacity-100' : 'opacity-0'
+                                imageLoading[String(item.data.id)] === false ? 'opacity-100' : 'opacity-0'
                               }`}
-                              onLoad={() => handleImageLoad(item.data.id)}
-                              onLoadStart={() => handleImageStartLoad(item.data.id)}
-                              onContextMenu={(e) => handleImageContextMenu(e, item.data)}
+                              onLoad={() => handleImageLoad(String(item.data.id))}
+                              onLoadStart={() => handleImageStartLoad(String(item.data.id))}
+                              onContextMenu={(e) => handleImageContextMenu(e, { id: String(item.data.id), url: item.data.url, alt: item.data.alt })}
                               loading="lazy"
                             />
 
@@ -1412,7 +1478,7 @@ function GalleryContent() {
                       {uploadedCount >= 5 && VENUE_INFO.enableLineUnlock && (
                         <span className="text-xs text-red-600 font-serif font-bold">⚠️ LINEで無制限化</span>
                       )}
-                      {uploadedCount >= 5 && !VENUE_INFO.enableLineUnlock && (
+                      {uploadedCount >= 5 && !venueInfo?.enableLineUnlock && (
                         <span className="text-xs text-red-600 font-serif font-bold">⚠️ 上限到達</span>
                       )}
                     </div>
@@ -1430,13 +1496,13 @@ function GalleryContent() {
                   <div className="grid grid-cols-3 gap-1">
                     {itemsWithAds.map((item, index) => {
                   if (item.type === 'photo') {
-                    const isSelected = selectedImageIds.includes(item.data.id);
+                    const isSelected = selectedImageIds.includes(String(item.data.id));
                     return (
                       <motion.div
                         key={`photo-${item.data.id}`}
-                        initial={newPhotoIds.has(item.data.id) ? { opacity: 0, scale: 0.8, y: 20 } : { opacity: 0, scale: 0.9 }}
+                        initial={newPhotoIds.has(String(item.data.id)) ? { opacity: 0, scale: 0.8, y: 20 } : { opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={newPhotoIds.has(item.data.id) 
+                        transition={newPhotoIds.has(String(item.data.id)) 
                           ? { 
                               type: 'spring', 
                               stiffness: 200, 
@@ -1445,17 +1511,17 @@ function GalleryContent() {
                             }
                           : { delay: index * 0.02 }
                         }
-                        onClick={() => handleImageToggle(item.data)}
+                        onClick={() => handleImageToggle({ id: String(item.data.id), url: item.data.url, alt: item.data.alt })}
                         className={`aspect-square bg-stone-200 overflow-hidden relative transition-all duration-200 rounded-sm ${
                           isSelectMode
                             ? 'active:opacity-80 cursor-pointer hover:scale-105'
                             : 'active:opacity-80 cursor-pointer hover:scale-105'
                         } shadow-md hover:shadow-xl`}
                       >
-                        {(imageLoading[item.data.id] === undefined || imageLoading[item.data.id] === true) && (
+                        {(imageLoading[String(item.data.id)] === undefined || imageLoading[String(item.data.id)] === true) && (
                           <motion.div 
                             initial={{ opacity: 1 }}
-                            animate={{ opacity: imageLoading[item.data.id] === false ? 0 : 1 }}
+                            animate={{ opacity: imageLoading[String(item.data.id)] === false ? 0 : 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.3 }}
                             className="absolute inset-0 bg-gradient-to-br from-stone-200 to-stone-300 animate-pulse flex items-center justify-center z-10"
@@ -1469,11 +1535,11 @@ function GalleryContent() {
                           src={item.data.url}
                           alt={item.data.alt}
                           className={`w-full h-full object-cover transition-opacity duration-300 ${
-                            imageLoading[item.data.id] === false ? 'opacity-100' : 'opacity-0'
+                            imageLoading[String(item.data.id)] === false ? 'opacity-100' : 'opacity-0'
                           }`}
-                          onLoad={() => handleImageLoad(item.data.id)}
-                          onLoadStart={() => handleImageStartLoad(item.data.id)}
-                          onContextMenu={(e) => handleImageContextMenu(e, item.data)}
+                          onLoad={() => handleImageLoad(String(item.data.id))}
+                          onLoadStart={() => handleImageStartLoad(String(item.data.id))}
+                          onContextMenu={(e) => handleImageContextMenu(e, { id: String(item.data.id), url: item.data.url, alt: item.data.alt })}
                           loading="lazy"
                         />
 
@@ -1545,7 +1611,7 @@ function GalleryContent() {
             <footer className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200/50 shadow-2xl pb-[env(safe-area-inset-bottom)] z-[9997]">
               <div className="px-4 py-4">
                 {/* 投稿上限到達時: LINE連携ボタンに変化（会場設定で有効な場合のみ） */}
-                {uploadedCount >= 5 && !isLineConnected && VENUE_INFO.enableLineUnlock ? (
+                {uploadedCount >= 5 && !isLineConnected && venueInfo?.enableLineUnlock ? (
                   <motion.button
                     type="button"
                     onClick={() => {
@@ -1568,7 +1634,7 @@ function GalleryContent() {
                     <MessageCircle className="w-6 h-6" />
                     <span className="font-semibold">LINE連携で無制限にする</span>
                   </motion.button>
-                ) : uploadedCount >= 5 && !isLineConnected && !VENUE_INFO.enableLineUnlock ? (
+                ) : uploadedCount >= 5 && !isLineConnected && !venueInfo?.enableLineUnlock ? (
                   /* 上限到達時（LINE連携機能無効）: 無効化されたアップロードボタン */
                   <button
                     type="button"
