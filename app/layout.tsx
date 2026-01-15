@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Shippori_Mincho } from 'next/font/google';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 
 const shippori = Shippori_Mincho({ 
   weight: ['400', '500', '600', '700'],

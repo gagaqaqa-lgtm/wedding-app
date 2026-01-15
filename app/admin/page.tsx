@@ -1,53 +1,154 @@
 'use client';
 
-import { useState } from 'react';
-import { Building2, Calendar, TrendingUp, DollarSign, Activity } from 'lucide-react';
+import Link from 'next/link';
+import { format } from 'date-fns';
+import { ja } from 'date-fns/locale/ja';
+import { Building2, TrendingUp, DollarSign, Activity, ArrowRight, Plus, LayoutDashboard } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { SmartStatus } from '@/components/common/SmartStatus';
-import type { Venue } from '@/lib/store/venueStore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
-// ダミーデータ（実際はAPIから取得）
-const DUMMY_VENUES: Venue[] = [
+// Venue型定義（会場管理画面と統一）
+export type VenuePlan = 'LIGHT' | 'STANDARD' | 'PREMIUM';
+export type VenueStatus = 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING';
+
+export interface Venue {
+  id: string;
+  name: string;
+  code: string;
+  plan: VenuePlan;
+  status: VenueStatus;
+  lastActiveAt: Date;
+  adminName: string;
+  adminEmail: string;
+  createdAt: Date; // 登録日時を追加
+}
+
+// モックデータ（会場管理画面と同様の構造）
+const MOCK_VENUES: Venue[] = [
   {
-    id: '1',
-    name: 'ABC式場',
-    status: 'active',
-    email: 'contact@abc-venue.com',
-    phone: '03-1234-5678',
-    address: '東京都渋谷区...',
-    todayWeddings: 3,
-    monthlyRevenue: 15000000,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: 'v_001',
+    name: 'グランドホテル東京',
+    code: 'grand-hotel-tokyo',
+    plan: 'PREMIUM',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-15T10:30:00'),
+    adminName: '山田 太郎',
+    adminEmail: 'admin@grandhotel-tokyo.jp',
+    createdAt: new Date('2024-01-10T10:00:00'),
   },
   {
-    id: '2',
-    name: 'XYZ式場',
-    status: 'suspended',
-    email: 'contact@xyz-venue.com',
-    phone: '03-9876-5432',
-    address: '東京都新宿区...',
-    todayWeddings: 0,
-    monthlyRevenue: 8000000,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: 'v_002',
+    name: 'オーシャンビュー横浜',
+    code: 'oceanview-yokohama',
+    plan: 'PREMIUM',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-14T15:20:00'),
+    adminName: '佐藤 花子',
+    adminEmail: 'contact@oceanview-yokohama.jp',
+    createdAt: new Date('2024-01-08T14:00:00'),
   },
   {
-    id: '3',
-    name: 'DEF式場',
-    status: 'active',
-    email: 'contact@def-venue.com',
-    phone: '03-5555-6666',
-    address: '東京都港区...',
-    todayWeddings: 5,
-    monthlyRevenue: 25000000,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: 'v_003',
+    name: 'ガーデンウェディング大阪',
+    code: 'garden-wedding-osaka',
+    plan: 'STANDARD',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-13T09:15:00'),
+    adminName: '鈴木 一郎',
+    adminEmail: 'info@garden-wedding-osaka.jp',
+    createdAt: new Date('2024-01-05T09:00:00'),
+  },
+  {
+    id: 'v_004',
+    name: 'パレスホテル名古屋',
+    code: 'palace-nagoya',
+    plan: 'PREMIUM',
+    status: 'SUSPENDED',
+    lastActiveAt: new Date('2024-01-05T14:00:00'),
+    adminName: '田中 美咲',
+    adminEmail: 'admin@palace-nagoya.jp',
+    createdAt: new Date('2023-12-20T10:00:00'),
+  },
+  {
+    id: 'v_005',
+    name: 'リゾートウェディング沖縄',
+    code: 'resort-okinawa',
+    plan: 'PREMIUM',
+    status: 'ONBOARDING',
+    lastActiveAt: new Date('2024-01-10T11:45:00'),
+    adminName: '伊藤 健',
+    adminEmail: 'contact@resort-okinawa.jp',
+    createdAt: new Date('2024-01-12T11:00:00'),
+  },
+  {
+    id: 'v_006',
+    name: 'クラシックホール京都',
+    code: 'classic-kyoto',
+    plan: 'STANDARD',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-15T16:30:00'),
+    adminName: '高橋 由美',
+    adminEmail: 'info@classic-kyoto.jp',
+    createdAt: new Date('2023-12-15T10:00:00'),
+  },
+  {
+    id: 'v_007',
+    name: 'モダンウェディング福岡',
+    code: 'modern-fukuoka',
+    plan: 'PREMIUM',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-12T13:20:00'),
+    adminName: '渡辺 雄一',
+    adminEmail: 'admin@modern-fukuoka.jp',
+    createdAt: new Date('2023-11-20T10:00:00'),
+  },
+  {
+    id: 'v_008',
+    name: 'エレガントホール仙台',
+    code: 'elegant-sendai',
+    plan: 'STANDARD',
+    status: 'SUSPENDED',
+    lastActiveAt: new Date('2023-12-28T10:00:00'),
+    adminName: '中村 麻衣',
+    adminEmail: 'contact@elegant-sendai.jp',
+    createdAt: new Date('2023-10-15T10:00:00'),
+  },
+  {
+    id: 'v_009',
+    name: 'ロイヤルパレス札幌',
+    code: 'royal-sapporo',
+    plan: 'PREMIUM',
+    status: 'ACTIVE',
+    lastActiveAt: new Date('2024-01-15T08:00:00'),
+    adminName: '小林 正',
+    adminEmail: 'info@royal-sapporo.jp',
+    createdAt: new Date('2024-01-14T08:00:00'),
+  },
+  {
+    id: 'v_010',
+    name: 'シーサイドウェディング神戸',
+    code: 'seaside-kobe',
+    plan: 'PREMIUM',
+    status: 'ONBOARDING',
+    lastActiveAt: new Date('2024-01-08T12:30:00'),
+    adminName: '加藤 愛',
+    adminEmail: 'admin@seaside-kobe.jp',
+    createdAt: new Date('2024-01-11T12:00:00'),
   },
 ];
 
-// 統計カードコンポーネント
-interface StatCardProps {
+// メトリクスカードコンポーネント
+interface MetricCardProps {
   icon: React.ElementType;
   label: string;
   value: string | number;
@@ -55,7 +156,7 @@ interface StatCardProps {
   color: string;
 }
 
-function StatCard({ icon: Icon, label, value, change, color }: StatCardProps) {
+function MetricCard({ icon: Icon, label, value, change, color }: MetricCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -67,182 +168,210 @@ function StatCard({ icon: Icon, label, value, change, color }: StatCardProps) {
           <Icon className="w-6 h-6 text-white" />
         </div>
         {change && (
-          <span className={`text-sm font-medium font-sans ${change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`text-sm font-medium font-sans antialiased ${change.startsWith('+') ? 'text-indigo-600' : 'text-red-600'}`}>
             {change}
           </span>
         )}
       </div>
       <div className="space-y-1">
-        <p className="text-sm text-gray-600 font-sans">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 font-sans">{value}</p>
+        <p className="text-sm text-gray-600 font-sans antialiased">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 font-sans antialiased">{value}</p>
       </div>
     </motion.div>
   );
 }
 
+// プランラベル取得
+const getPlanLabel = (plan: VenuePlan): string => {
+  switch (plan) {
+    case 'LIGHT':
+      return 'ライト';
+    case 'STANDARD':
+      return 'スタンダード';
+    case 'PREMIUM':
+      return 'プレミアム';
+  }
+};
+
+// ステータスバッジの色分け
+const getStatusBadgeVariant = (status: VenueStatus): 'indigo' | 'destructive' | 'warning' => {
+  switch (status) {
+    case 'ACTIVE':
+      return 'indigo';
+    case 'SUSPENDED':
+      return 'destructive';
+    case 'ONBOARDING':
+      return 'warning';
+  }
+};
+
+// ステータスラベル
+const getStatusLabel = (status: VenueStatus): string => {
+  switch (status) {
+    case 'ACTIVE':
+      return '稼働中';
+    case 'SUSPENDED':
+      return '停止中';
+    case 'ONBOARDING':
+      return '導入中';
+  }
+};
+
 export default function SuperAdminDashboardPage() {
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  // 統計データの計算
+  const totalVenues = MOCK_VENUES.length;
+  const activeVenues = MOCK_VENUES.filter((v) => v.status === 'ACTIVE').length;
+  const activeRate = totalVenues > 0 ? ((activeVenues / totalVenues) * 100).toFixed(1) : '0.0';
 
-  // 統計データ
-  const totalVenues = DUMMY_VENUES.length;
-  const activeVenues = DUMMY_VENUES.filter(v => v.status === 'active').length;
-  const totalTodayWeddings = DUMMY_VENUES.reduce((sum, v) => sum + v.todayWeddings, 0);
-  const totalMonthlyRevenue = DUMMY_VENUES.reduce((sum, v) => sum + v.monthlyRevenue, 0);
+  // 今月の新規契約数（1月に登録された会場）
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const newVenuesThisMonth = MOCK_VENUES.filter((v) => {
+    const createdDate = v.createdAt;
+    return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+  }).length;
 
-  // フィルタリング
-  const filteredVenues = selectedStatus
-    ? DUMMY_VENUES.filter(v => v.status === selectedStatus)
-    : DUMMY_VENUES;
+  // 今月の推定収益（モック計算：各プランに基づく）
+  const estimatedMonthlyRevenue = MOCK_VENUES.reduce((sum, v) => {
+    let revenue = 0;
+    switch (v.plan) {
+      case 'LIGHT':
+        revenue = 50000;
+        break;
+      case 'STANDARD':
+        revenue = 100000;
+        break;
+      case 'PREMIUM':
+        revenue = 200000;
+        break;
+    }
+    return sum + revenue;
+  }, 0);
 
-  // ステータスフィルタ
-  const statusFilters = [
-    { label: '全', value: null },
-    { label: 'アクティブ', value: 'active' },
-    { label: '一時停止', value: 'suspended' },
-    { label: '無効', value: 'inactive' },
-  ];
+  // 最近登録された会場（登録日時でソート、最新5件）
+  const recentVenues = [...MOCK_VENUES]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 5);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* ページタイトル */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 font-sans">
-          Global Command Center
-        </h1>
-        <p className="text-gray-600 font-sans">
-          全式場の状況を一括管理・監視します
-        </p>
-      </div>
-
-      {/* 統計カード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={Building2}
-          label="登録式場数"
-          value={totalVenues}
-          change="+2 (今月)"
-          color="bg-blue-500"
-        />
-        <StatCard
-          icon={Activity}
-          label="アクティブ式場"
-          value={activeVenues}
-          color="bg-green-500"
-        />
-        <StatCard
-          icon={Calendar}
-          label="本日の挙式数"
-          value={totalTodayWeddings}
-          color="bg-purple-500"
-        />
-        <StatCard
-          icon={DollarSign}
-          label="今月の売上"
-          value={`¥${(totalMonthlyRevenue / 1000000).toFixed(1)}M`}
-          change="+12.5%"
-          color="bg-pink-500"
-        />
-      </div>
-
-      {/* 式場一覧テーブル */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 font-sans">式場一覧</h2>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-sans font-medium">
-              + 式場追加
-            </button>
+    <div className="flex-1 flex flex-col min-h-screen font-sans antialiased">
+      <div className="flex-1 overflow-auto bg-slate-50">
+        <div className="max-w-7xl mx-auto">
+          {/* ページヘッダー */}
+          <div className="px-8 py-5">
+            <div className="flex items-center justify-between mb-8 space-y-2">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-indigo-50 rounded-xl">
+                  <LayoutDashboard className="w-8 h-8 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-gray-900">ダッシュボード</h2>
+                  <p className="text-gray-600">システム全体の稼働状況と主要指標を確認します。</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/admin/venues">
+                  <Button
+                    variant="outline"
+                    className="font-sans antialiased"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    新規会場登録
+                  </Button>
+                </Link>
+              </div>
+            </div>
           </div>
 
-          {/* ステータスフィルタ */}
-          <div className="flex gap-2">
-            {statusFilters.map((filter) => (
-              <button
-                key={filter.value || 'all'}
-                onClick={() => setSelectedStatus(filter.value)}
-                className={`px-3 py-1.5 text-sm rounded-lg font-sans transition-colors ${
-                  selectedStatus === filter.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* コンテンツエリア */}
+          <div className="p-8 space-y-6">
+            {/* メトリクスカード */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <MetricCard
+                icon={Building2}
+                label="総契約会場数"
+                value={`${totalVenues} Venues`}
+                change={`+${newVenuesThisMonth} (今月)`}
+                color="bg-indigo-500"
+              />
+              <MetricCard
+                icon={TrendingUp}
+                label="今月の新規契約"
+                value={`+${newVenuesThisMonth} Venues`}
+                color="bg-indigo-600"
+              />
+              <MetricCard
+                icon={Activity}
+                label="稼働率"
+                value={`${activeRate}% Active`}
+                color="bg-indigo-700"
+              />
+              <MetricCard
+                icon={DollarSign}
+                label="今月の推定収益"
+                value={`¥${estimatedMonthlyRevenue.toLocaleString()}`}
+                color="bg-indigo-800"
+              />
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider font-sans">
-                  式場名
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider font-sans">
-                  ステータス
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider font-sans">
-                  本日の挙式
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider font-sans">
-                  今月の売上
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider font-sans">
-                  アクション
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredVenues.map((venue) => (
-                <motion.tr
-                  key={venue.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="hover:bg-blue-50 transition-colors cursor-pointer group"
-                  onClick={() => window.location.href = `/admin/venues/${venue.id}`}
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <Building2 className="w-5 h-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 font-sans group-hover:text-blue-600">
-                          {venue.name}
-                        </p>
-                        <p className="text-xs text-gray-500 font-sans">{venue.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <SmartStatus status={venue.status} type="venue" size="sm" />
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-900 font-sans">{venue.todayWeddings}件</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-900 font-sans">
-                      ¥{(venue.monthlyRevenue / 1000000).toFixed(1)}M
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.location.href = `/admin/venues/${venue.id}`;
-                        }}
-                        className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-sans"
-                      >
-                        詳細
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+            {/* 最近登録された会場 */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-sans antialiased">最近登録された会場</CardTitle>
+                  <Link href="/admin/venues">
+                    <Button variant="ghost" size="sm" className="font-sans antialiased">
+                      すべての会場を見る
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="font-sans antialiased">会場名</TableHead>
+                      <TableHead className="font-sans antialiased">プラン</TableHead>
+                      <TableHead className="font-sans antialiased">登録日</TableHead>
+                      <TableHead className="font-sans antialiased">ステータス</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentVenues.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-gray-500 py-8 font-sans antialiased">
+                          会場がありません
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      recentVenues.map((venue) => (
+                        <TableRow key={venue.id} className="hover:bg-indigo-50 transition-colors cursor-pointer">
+                          <TableCell className="font-sans antialiased font-medium">
+                            {venue.name}
+                          </TableCell>
+                          <TableCell className="font-sans antialiased">
+                            {getPlanLabel(venue.plan)}
+                          </TableCell>
+                          <TableCell className="font-sans antialiased">
+                            {format(venue.createdAt, 'yyyy/MM/dd', { locale: ja })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={getStatusBadgeVariant(venue.status)}
+                              className="font-sans antialiased"
+                            >
+                              {getStatusLabel(venue.status)}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

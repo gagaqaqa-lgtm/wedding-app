@@ -30,6 +30,7 @@ export interface Wedding {
   lockedBy: string | null;
   plannerName?: string; // 担当プランナー名
   guestCount?: number; // 参加人数
+  mode?: 'INTERACTIVE' | 'SIMPLE'; // インタラクティブ（テーブル共有あり） / シンプル（DLのみ）
 }
 
 export interface TaskMetrics {

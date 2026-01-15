@@ -1,0 +1,132 @@
+/**
+ * 統合ログインページ（サンプル実装）
+ * 
+ * このファイルは、移行後の統合ログインページのサンプルです。
+ * 実際の移行時に参考にしてください。
+ * 
+ * パス: app/(auth)/login/page.tsx
+ * URL: /login
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Building2, Shield, ArrowRight } from 'lucide-react';
+
+export default function UnifiedLoginPage() {
+  const router = useRouter();
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'venue' | null>(null);
+
+  const handleRoleSelect = (role: 'admin' | 'venue') => {
+    setSelectedRole(role);
+    // 選択したロールに応じて専用ログインページへ遷移
+    setTimeout(() => {
+      router.push(`/login/${role}`);
+    }, 300);
+  };
+
+  return (
+    <div className="min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-white via-gray-50/50 to-pink-50/30">
+      {/* 背景装飾 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-40 -left-40 w-96 h-96 bg-gray-200/20 rounded-full blur-3xl"
+          animate={{
+            x: [0, 50, 0],
+            y: [0, 30, 0],
+            scale: [1, 1.1, 1],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+      </div>
+
+      {/* メインコンテンツ */}
+      <div className="relative z-10 min-h-[100dvh] flex flex-col items-center justify-center px-4 py-12 sm:py-16 md:py-20">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="text-center mb-8 sm:mb-12"
+        >
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-shippori font-bold text-stone-800 mb-2 sm:mb-3">
+            Ppat Guest Link
+          </h1>
+          <p className="text-sm sm:text-base text-stone-600 font-sans">
+            ログイン方法を選択してください
+          </p>
+        </motion.div>
+
+        {/* ロール選択カード */}
+        <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* スーパーアドミン */}
+          <motion.button
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            onClick={() => handleRoleSelect('admin')}
+            className="bg-white/60 backdrop-blur-xl border-2 border-gray-200 rounded-2xl sm:rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 text-left group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">スーパーアドミン</h2>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              プラットフォーム運営者向けの管理画面です
+            </p>
+            <div className="flex items-center gap-2 text-blue-600 font-medium">
+              <span>ログイン</span>
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </div>
+          </motion.button>
+
+          {/* 会場管理者 */}
+          <motion.button
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+            onClick={() => handleRoleSelect('venue')}
+            className="bg-white/60 backdrop-blur-xl border-2 border-gray-200 rounded-2xl sm:rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 text-left group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">会場管理者</h2>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">
+              結婚式場のプランナー向けのダッシュボードです
+            </p>
+            <div className="flex items-center gap-2 text-emerald-600 font-medium">
+              <span>ログイン</span>
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </div>
+          </motion.button>
+        </div>
+
+        {/* ゲスト向けリンク */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.6 }}
+          className="mt-8 text-center"
+        >
+          <Link
+            href="/"
+            className="text-sm text-stone-600 hover:text-stone-800 transition-colors font-sans"
+          >
+            ゲストポータルへ →
+          </Link>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

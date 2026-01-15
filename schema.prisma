@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Venue {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  status    String   @default("active")
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- 口コミ設定 (Review Settings) ---
+  
+  // 新郎新婦向け設定
+  coupleReviewUrl       String?  // Google Maps等のURL
+  coupleReviewThreshold Int      @default(4) // この星数以上ならURLへ誘導（デフォルト4）
+
+  // ゲスト向け設定
+  guestReviewUrl        String?  // Google Maps等のURL
+  guestReviewThreshold  Int      @default(4) // この星数以上ならURLへ誘導（デフォルト4）
+
+  // 通知先設定
+  reviewNotificationEmail String?  // 低評価時のフィードバック通知先
+
+  @@map("venues")
+}
+
+model Wedding {
+  id        String   @id @default(cuid())
+  venueId   String
+  date      DateTime
+  familyNames String
+  time      String
+  hall      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // リレーション
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  feedbacks Feedback[]
+
+  @@map("weddings")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  content   String   @db.Text // ご意見の内容
+  rating    Int      // 評価（星の数 1-5）
+  source    String   // 'COUPLE' | 'GUEST' (誰からか)
+  createdAt DateTime @default(now())
+
+  // リレーション
+  weddingId String
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+
+  @@map("feedbacks")
+}
