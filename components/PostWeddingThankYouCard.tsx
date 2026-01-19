@@ -171,7 +171,7 @@ export function PostWeddingThankYouCard({
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden">
+    <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden">
       {/* 背景: ブラーのかかった幸せな雰囲気の画像 */}
       <div className="absolute inset-0">
         <img
