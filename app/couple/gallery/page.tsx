@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CoupleReviewGateDrawer } from '@/components/CoupleReviewGateDrawer';
 import { DownloadWaitModal } from '@/components/DownloadWaitModal';
 import { AdCard } from '@/components/AdCard';
@@ -85,8 +85,10 @@ interface PhotoItem {
   isFavorite: boolean;
 }
 
-export default function CoupleGalleryPage() {
+function CoupleGalleryContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get('mode'); // デモ用デバッグモード
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [weddingDate, setWeddingDate] = useState<Date | null>(null);
@@ -94,10 +96,58 @@ export default function CoupleGalleryPage() {
   const [tables, setTables] = useState<Array<{ id: string; name: string }>>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   
+  // デモデータ生成関数（mode=today の場合）
+  const generateDemoPhotos = (): PhotoItem[] => {
+    const now = new Date();
+    const demoPhotos: PhotoItem[] = [];
+    
+    for (let i = 0; i < 30; i++) {
+      // ランダムなテーブルID（一部はnullで全員向け）
+      const tableIds = ['table-a', 'table-b', 'table-c', 'table-d', null];
+      const randomTableId = tableIds[Math.floor(Math.random() * tableIds.length)];
+      
+      // 過去30分以内のランダムなタイムスタンプ
+      const randomMinutesAgo = Math.floor(Math.random() * 30);
+      const timestamp = new Date(now.getTime() - randomMinutesAgo * 60 * 1000);
+      
+      demoPhotos.push({
+        id: `demo-photo-${i + 1}`,
+        url: `https://picsum.photos/400/300?random=${i + 1}`,
+        tableId: randomTableId,
+        timestamp: timestamp,
+        isFavorite: Math.random() > 0.8, // 20%の確率でお気に入り
+      });
+    }
+    
+    return demoPhotos;
+  };
+  
   // データの読み込み
   useEffect(() => {
     const loadData = async () => {
       try {
+        // デモモードの場合、ダミーデータを生成
+        if (mode === 'today') {
+          const date = new Date();
+          date.setHours(0, 0, 0, 0);
+          setWeddingDate(date);
+          
+          const demoPhotos = generateDemoPhotos();
+          setPhotos(demoPhotos);
+          setFavorites(new Set(demoPhotos.filter(p => p.isFavorite).map(p => p.id)));
+          setDaysRemaining(0); // 当日なので0
+          
+          // デモ用のテーブルデータも生成
+          setTables([
+            { id: 'table-a', name: 'A卓' },
+            { id: 'table-b', name: 'B卓' },
+            { id: 'table-c', name: 'C卓' },
+            { id: 'table-d', name: 'D卓' },
+          ]);
+          return;
+        }
+        
+        // 通常モード: APIからデータを取得
         const [date, wedding, allPhotos] = await Promise.all([
           getWeddingDate(MOCK_WEDDING_ID),
           getWeddingInfo(MOCK_WEDDING_ID),
@@ -125,7 +175,7 @@ export default function CoupleGalleryPage() {
       }
     };
     loadData();
-  }, []);
+  }, [mode]);
   
   // 挙式日までの日数を計算
   const [daysRemaining, setDaysRemaining] = useState(0);
@@ -864,5 +914,19 @@ export default function CoupleGalleryPage() {
         adCatchCopy="新生活にお得な情報"
       />
     </div>
+  );
+}
+
+export default function CoupleGalleryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <CoupleGalleryContent />
+    </Suspense>
   );
 }
