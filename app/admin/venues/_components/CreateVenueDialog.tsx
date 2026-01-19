@@ -81,10 +81,8 @@ export function CreateVenueDialog({ open, onOpenChange, onSuccess }: CreateVenue
         code: values.code,
         plan: values.plan,
         status: 'ACTIVE', // 新規作成時はアクティブ
-        admin: {
-          name: values.adminName,
-          email: values.adminEmail,
-        },
+        adminName: values.adminName,
+        adminEmail: values.adminEmail,
       });
 
       // フォームをリセット
