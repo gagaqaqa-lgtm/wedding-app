@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Guest Link - 開発引き継ぎ資料</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            line-height: 1.6;
+            color: #24292e;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #ffffff;
+        }
+        h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+            margin-bottom: 24px;
+        }
+        h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+            margin-top: 36px;
+            margin-bottom: 16px;
+        }
+        h3 {
+            font-size: 1.25em;
+            margin-top: 24px;
+            margin-bottom: 16px;
+        }
+        p {
+            margin-bottom: 16px;
+        }
+        ul {
+            padding-left: 2em;
+            margin-bottom: 16px;
+        }
+        li {
+            margin-bottom: 0.25em;
+        }
+        code {
+            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 85%;
+        }
+        pre {
+            background-color: #f6f8fa;
+            padding: 16px;
+            overflow: auto;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            font-size: 100%;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        th, td {
+            border: 1px solid #dfe2e5;
+            padding: 6px 13px;
+        }
+        th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+            text-align: left;
+        }
+        tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+        blockquote {
+            border-left: 0.25em solid #dfe2e5;
+            color: #6a737d;
+            padding: 0 1em;
+            margin: 0 0 16px 0;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        .status-done { background-color: #dafbe1; color: #1a7f37; }
+        .status-warn { background-color: #fff8c5; color: #9a6700; }
+        .status-target { background-color: #ddf4ff; color: #0969da; }
+        hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #e1e4e8;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Wedding Guest Link - 開発引き継ぎ・実装要件定義書</h1>
+
+<h2>1. プロジェクト概要</h2>
+
+<p><strong>「Wedding Guest Link」</strong>は、結婚式参列者がQRコードからアクセスし、写真を共有・閲覧できるWebアプリケーションです。<br>
+アプリインストール不要のゲスト体験と、結婚式場向けのマーケティング機能（LINE友だち獲得・口コミ収集）を統合したSaaSプロダクトです。</p>
+
+<h3>プロジェクトの現状 (Current Status)</h3>
+<ul>
+    <li><span class="status-badge status-done">完了</span> <strong>フロントエンド:</strong> Next.js (App Router) による高忠実度プロトタイプが完成済み。</li>
+    <li><span class="status-badge status-done">完了</span> <strong>UI/UX:</strong> Framer Motionを用いたリッチな演出、レスポンシブ対応が完了。</li>
+    <li><span class="status-badge status-warn">注意</span> <strong>データ:</strong> 現在はクライアントサイドの <code>useState</code> やモックデータで動作中。</li>
+    <li><span class="status-badge status-target">目標</span> <strong>今回のゴール:</strong> バックエンド（DB/API）を構築し、本番運用可能な状態にすること。</li>
+</ul>
+
+<hr>
+
+<h2>2. フロントエンド実装状況 (Frontend Context)</h2>
+<p>既存コードベースの理解に必要な情報をまとめました。</p>
+
+<h3>2.1 技術スタック</h3>
+<ul>
+    <li><strong>Framework:</strong> Next.js 15.1 (App Router) / TypeScript</li>
+    <li><strong>Styling:</strong> Tailwind CSS / shadcn/ui</li>
+    <li><strong>State:</strong> Zustand (Global), SWR (Fetch)</li>
+    <li><strong>Animation:</strong> Framer Motion (重要: 演出の肝)</li>
+</ul>
+
+<h3>2.2 主要ディレクトリと実装済みロジック</h3>
+<p>バックエンド接続時に修正が必要な主要ファイルです。</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>機能</th>
+            <th>関連ファイルパス</th>
+            <th>現状の実装 (Mock)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>ゲスト認証</td>
+            <td><code>app/(guest)/guest/(entry)/page.tsx</code></td>
+            <td>固定パスコード '1111' で通過</td>
+        </tr>
+        <tr>
+            <td>アンケート</td>
+            <td><code>app/(guest)/guest/(onboarding)/survey/page.tsx</code></td>
+            <td>星評価による分岐、localStorageでの既読管理</td>
+        </tr>
+        <tr>
+            <td>写真一覧</td>
+            <td><code>app/(guest)/guest/(main)/gallery/page.tsx</code></td>
+            <td>ダミー画像表示、インフィード広告(12枚毎)</td>
+        </tr>
+        <tr>
+            <td>写真アップ</td>
+            <td><code>app/(guest)/guest/(main)/gallery/page.tsx</code></td>
+            <td>選択→プレビューのみ。枚数制限ロジックあり</td>
+        </tr>
+        <tr>
+            <td>プラン設定</td>
+            <td><code>.../_components/WeddingSettingsForm.tsx</code></td>
+            <td>LIGHT/STANDARD/PREMIUMのUI制御</td>
+        </tr>
+        <tr>
+            <td>卓設定</td>
+            <td><code>app/couple/tables/page.tsx</code></td>
+            <td>新郎新婦による卓ごとの写真・メッセージ設定</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>3. バックエンド開発要件 (Backend Requirements)</h2>
+<p>本番開発にて実装するバックエンドの仕様定義です。<br>
+<strong>推奨スタック:</strong> Supabase (Auth, DB, Storage) + Next.js Server Actions / API Routes</p>
+
+<h3>3.1 データベース設計 (Prisma Schema)</h3>
+
+<pre><code>// 会場（SaaS契約者）
+model Venue {
+  id                String      @id @default(cuid())
+  name              String
+  code              String      @unique // URL用識別子
+  plan              PlanType    @default(STANDARD)
+  status            VenueStatus @default(ACTIVE)
+  enableLineUnlock  Boolean     @default(false) // LINE連携機能の有効化フラグ
+  weddings          Wedding[]
+}
+
+enum PlanType {
+  LIGHT     // 広告あり / LINE連携不可
+  STANDARD  // 広告あり / LINE連携可
+  PREMIUM   // 広告なし / LINE連携可
+}
+
+// 挙式（イベント単位）
+model Wedding {
+  id                String    @id @default(cuid())
+  venueId           String
+  venue             Venue     @relation(fields: [venueId], references: [id])
+  groomName         String
+  brideName         String
+  passcode          String    // ゲスト入場用4桁コード
+  isLocked          Boolean   @default(false)
+  tables            Table[]
+  photos            Photo[]
+  guests            Guest[]
+}
+
+// 写真
+model Photo {
+  id                String    @id @default(cuid())
+  weddingId         String
+  tableId           String?   // Nullable (新郎新婦投稿など)
+  url               String    // 原画URL
+  thumbnailUrl      String?   // 圧縮サムネイルURL
+  uploadedBy        String    // Guest ID
+  isApproved        Boolean   @default(true) // コンプライアンス用
+}
+
+// ゲスト（ユーザー）
+model Guest {
+  id                String    @id @default(cuid())
+  lineUserId        String?   @unique // LINE連携時のみ
+  isLineConnected   Boolean   @default(false)
+  uploadedCount     Int       @default(0)
+}
+</code></pre>
+
+<h3>3.2 重要ビジネスロジック (Business Logic)</h3>
+<p>システムの中核となる「プランごとの挙動」です。API実装時に厳守してください。</p>
+
+<h4>【プラン別機能マトリクス】</h4>
+<table>
+    <thead>
+        <tr>
+            <th>機能 / プラン</th>
+            <th>LIGHT</th>
+            <th>STANDARD</th>
+            <th>PREMIUM</th>
+            <th>実装制御ポイント</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>LINE連携機能</td>
+            <td>❌ 利用不可</td>
+            <td>✅ 利用可</td>
+            <td>✅ 利用可</td>
+            <td>Admin設定画面でLIGHTの場合、スイッチを強制OFFかつDisabledにする。</td>
+        </tr>
+        <tr>
+            <td>広告表示</td>
+            <td>👁️ あり</td>
+            <td>👁️ あり</td>
+            <td>🚫 なし</td>
+            <td>Guest画面（Gallery, DownloadModal）でプラン判定し、PREMIUM以外は広告を表示。</td>
+        </tr>
+        <tr>
+            <td>投稿枚数制限</td>
+            <td>5枚固定</td>
+            <td>解除可</td>
+            <td>解除可</td>
+            <td><code>uploadedCount >= 5</code> かつ <code>!isLineConnected</code> の場合、APIでアップロードを拒否(403)。</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>3.3 LINE連携仕様</h3>
+<ul>
+    <li><strong>目的:</strong> ゲストのLINE IDを取得し、投稿制限を解除する。</li>
+    <li><strong>フェーズ1 (MVP):</strong> クライアント側で「友だち追加ボタン」押下を検知し、APIを叩いて <code>isLineConnected = true</code> に更新する（性善説実装）。</li>
+    <li><strong>フェーズ2:</strong> LINE Messaging API Webhookを利用した厳密な友だち追加検知。</li>
+</ul>
+
+<hr>
+
+<h2>4. 実装ロードマップ (Implementation Guide)</h2>
+<p>以下の手順で開発を進めることを推奨します。</p>
+
+<h3>Phase 1: 基盤構築と認証 (工数目安: 3-5日)</h3>
+<ol>
+    <li>Supabaseプロジェクトのセットアップ（DB, Auth, Storage）。</li>
+    <li>Prismaスキーマの反映 (<code>npx prisma db push</code>)。</li>
+    <li><code>app/guest/page.tsx</code> の認証ロジックを、パスコードとWedding IDを用いたDB照合処理に置き換え。
+        <ul><li>成功時、匿名ログイン等でセッションを発行。</li></ul>
+    </li>
+</ol>
+
+<h3>Phase 2: コア機能実装 (工数目安: 7-10日)</h3>
+<ol>
+    <li><strong>写真アップロード:</strong>
+        <ul>
+            <li><code>app/guest/gallery/page.tsx</code> のアップロード処理を実装。</li>
+            <li>サーバーサイドでのリサイズ処理（Sharp等）またはCDN機能の活用。</li>
+            <li><code>Photo</code> テーブルへの保存。</li>
+        </ul>
+    </li>
+    <li><strong>写真一覧取得:</strong>
+        <ul>
+            <li>無限スクロール対応のページネーションAPIの実装。</li>
+            <li>プラン情報を含めたレスポンス設計（広告表示判定用）。</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Phase 3: プラン制御とLINE連携 (工数目安: 5日)</h3>
+<ol>
+    <li><strong>権限管理:</strong>
+        <ul><li>Admin画面 (<code>dashboard/...</code>) でプランを変更した際、即座に機能制限が反映されるかテスト。</li></ul>
+    </li>
+    <li><strong>広告制御:</strong>
+        <ul><li><code>venue.plan</code> が <code>PREMIUM</code> の場合、APIレスポンスにフラグを含め、フロントエンドの広告枠を非表示にする。</li></ul>
+    </li>
+</ol>
+
+<h3>Phase 4: コンプライアンス・品質向上 (工数目安: 3-5日)</h3>
+<ol>
+    <li><strong>不適切画像の排除:</strong> 管理画面から特定の写真を「非表示（論理削除）」にする機能。</li>
+    <li><strong>ダウンロード機能:</strong> 選択した写真をZIPでまとめる処理（Edge Functions推奨）。</li>
+</ol>
+
+<hr>
+
+<h2>5. 補足情報</h2>
+<ul>
+    <li><strong>環境変数:</strong> <code>.env.example</code> を参照してください。</li>
+    <li><strong>アイコン:</strong> <code>lucide-react</code> を使用しています。</li>
+    <li><strong>デザイン:</strong> <code>globals.css</code> および <code>tailwind.config.ts</code> にテーマカラー（Emerald/Stone/Gold）が定義されています。</li>
+</ul>
+
+<p>この資料とソースコードリポジトリを参照し、開発を進めてください。<br>
+不明点はQAチーム（プロジェクトオーナー）までお問い合わせください。</p>
+
+</body>
+</html>
