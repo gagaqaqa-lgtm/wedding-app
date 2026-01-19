@@ -61,7 +61,8 @@ export function CoupleReviewGateDrawer({
     }, 400);
   };
 
-  const handleHighRatingSubmit = async () => {
+  // Google Mapsレビュー投稿（スコアに関わらず常に利用可能）
+  const handleGoogleMapsSubmit = async () => {
     setIsSubmitting(true);
     try {
       // 1. 【最優先】まずドロワーを閉じる
@@ -96,7 +97,8 @@ export function CoupleReviewGateDrawer({
     }
   };
 
-  const handleLowRatingSubmit = async () => {
+  // 内部フィードバック送信（スコアに関わらず常に利用可能）
+  const handleInternalFeedbackSubmit = async () => {
     if (!feedback.trim()) return;
 
     setIsSubmitting(true);
@@ -120,7 +122,7 @@ export function CoupleReviewGateDrawer({
       // 5. ロック解除（閲覧ロック解除）
       onUnlock();
       
-      // 5. バックグラウンドでAPI処理を完了
+      // 6. バックグラウンドでAPI処理を完了
       await submitPromise;
       
       setIsSubmitting(false);
@@ -132,9 +134,6 @@ export function CoupleReviewGateDrawer({
       onOpenChange(false);
     }
   };
-
-  const isHighRating = selectedRating !== null && selectedRating >= ratingThreshold;
-  const isLowRating = selectedRating !== null && selectedRating < ratingThreshold;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -208,37 +207,94 @@ export function CoupleReviewGateDrawer({
             </div>
           )}
 
-          {/* STEP 2: 評価による分岐フロー */}
+          {/* STEP 2: フィードバック選択（スコアに関わらず両方のオプションを表示） */}
           {step === 'feedback' && (
             <div className="space-y-8 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-300 px-2 md:px-0">
-              {/* ケースA: 高評価 */}
-              {isHighRating && (
-                <div className="space-y-8 md:space-y-10">
-                  <div className="flex flex-col items-center text-center space-y-6 md:space-y-8">
-                    <div className="p-5 bg-white/60 backdrop-blur-sm rounded-full shadow-md border border-[#D4AF37]/20">
-                      <Heart className="w-10 h-10 md:w-12 md:h-12 text-[#D4AF37] fill-[#D4AF37]" />
-                    </div>
-                    <div className="space-y-4 max-w-2xl">
-                      <h3 className={cn(
-                        "text-xl md:text-2xl font-serif font-bold text-gray-900",
-                        "leading-relaxed"
-                      )}>
-                        温かいお言葉、ありがとうございます！
-                      </h3>
-                      <p className={cn(
-                        "text-base md:text-lg text-gray-700 leading-relaxed",
-                        "font-serif whitespace-pre-line"
-                      )}>
-                        お二人からの評価が、私たちの何よりの励みになります。
-                        {'\n\n'}
-                        もしよろしければ、<strong className="text-gray-900">これから結婚式を挙げる未来の新郎新婦様のために</strong>、この感想を口コミサイトでもシェアしていただけませんか？
-                      </p>
-                    </div>
+              <div className="flex flex-col items-center text-center space-y-6 md:space-y-8">
+                <div className="p-5 bg-white/60 backdrop-blur-sm rounded-full shadow-md border border-[#D4AF37]/20">
+                  <Heart className="w-10 h-10 md:w-12 md:h-12 text-[#D4AF37] fill-[#D4AF37]" />
+                </div>
+                <div className="space-y-4 max-w-2xl">
+                  <h3 className={cn(
+                    "text-xl md:text-2xl font-serif font-bold text-gray-900",
+                    "leading-relaxed"
+                  )}>
+                    お二人の率直な感想をお聞かせください
+                  </h3>
+                  <p className={cn(
+                    "text-base md:text-lg text-gray-700 leading-relaxed",
+                    "font-serif whitespace-pre-line"
+                  )}>
+                    より多くのカップルに幸せを届けるために、ご協力をお願いいたします。
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6 md:space-y-8">
+                {/* Google Mapsレビューボタン（googleMapsUrlが存在する場合のみ表示） */}
+                {googleMapsUrl && (
+                  <Button
+                    onClick={handleGoogleMapsSubmit}
+                    disabled={isSubmitting}
+                    className={cn(
+                      'w-full h-14 md:h-16',
+                      'bg-gradient-to-r from-[#D4AF37] via-amber-500 to-[#D4AF37]',
+                      'hover:from-amber-500 hover:via-[#D4AF37] hover:to-amber-500',
+                      'text-white font-semibold text-base md:text-lg',
+                      'transition-all duration-200 active:scale-95',
+                      'shadow-lg hover:shadow-xl',
+                      'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
+                      'rounded-xl',
+                      'font-serif'
+                    )}
+                  >
+                    <span className="flex items-center justify-center gap-2 md:gap-3">
+                      Googleマップで応援コメントを書く
+                      <ExternalLink className="w-5 h-5 md:w-6 md:h-6" />
+                    </span>
+                  </Button>
+                )}
+
+                {/* 区切り線 */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
                   </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="bg-[#FAF9F6] px-4 text-gray-500 font-serif">または</span>
+                  </div>
+                </div>
+
+                {/* 内部フィードバックフォーム */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label htmlFor="feedback" className="block text-sm font-semibold text-gray-700 font-serif">
+                      スタッフへ直接メッセージを送る
+                    </label>
+                    <p className="text-xs text-gray-500 font-serif">
+                      返信が必要な方はこちら
+                    </p>
+                  </div>
+                  <Textarea
+                    id="feedback"
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="ご意見・ご要望・改善してほしい点など、お気軽にお聞かせください..."
+                    rows={6}
+                    className={cn(
+                      'resize-none transition-all duration-200',
+                      'focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
+                      'border-gray-300 rounded-xl',
+                      'text-base md:text-lg leading-relaxed',
+                      'p-4 md:p-6',
+                      'bg-white/80 backdrop-blur-sm',
+                      'font-serif'
+                    )}
+                  />
 
                   <Button
-                    onClick={handleHighRatingSubmit}
-                    disabled={isSubmitting}
+                    onClick={handleInternalFeedbackSubmit}
+                    disabled={isSubmitting || !feedback.trim()}
                     className={cn(
                       'w-full h-14 md:h-16',
                       'bg-gradient-to-r from-emerald-500 to-teal-600',
@@ -247,94 +303,27 @@ export function CoupleReviewGateDrawer({
                       'transition-all duration-200 active:scale-95',
                       'shadow-lg hover:shadow-xl',
                       'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
-                      'rounded-xl'
+                      'rounded-xl',
+                      'font-serif'
                     )}
                   >
-                    <span className="flex items-center justify-center gap-2 md:gap-3">
-                      感想を届けて、アルバムを開く
-                      <ExternalLink className="w-5 h-5 md:w-6 md:h-6" />
-                    </span>
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center gap-2 md:gap-3">
+                        <svg className="animate-spin h-5 w-5 md:h-6 md:w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        送信中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2 md:gap-3">
+                        スタッフへご意見・ご要望を送る
+                        <Mail className="w-5 h-5 md:w-6 md:h-6" />
+                      </span>
+                    )}
                   </Button>
                 </div>
-              )}
-
-              {/* ケースB: 低評価 */}
-              {isLowRating && (
-                <div className="space-y-8 md:space-y-10">
-                  <div className="flex flex-col items-center text-center space-y-6 md:space-y-8">
-                    <div className="p-5 bg-white/60 backdrop-blur-sm rounded-full shadow-md border border-emerald-200/50">
-                      <Mail className="w-10 h-10 md:w-12 md:h-12 text-emerald-600" />
-                    </div>
-                    <div className="space-y-4 max-w-2xl">
-                      <h3 className={cn(
-                        "text-xl md:text-2xl font-serif font-bold text-gray-900",
-                        "leading-relaxed"
-                      )}>
-                        貴重なご意見をありがとうございます
-                      </h3>
-                      <p className={cn(
-                        "text-base md:text-lg text-gray-700 leading-relaxed",
-                        "font-serif whitespace-pre-line"
-                      )}>
-                        お二人のご期待に添えない点があり、申し訳ございません。
-                        {'\n\n'}
-                        いただいたご意見を真摯に受け止め、サービスの改善に努めてまいります。
-                        {'\n\n'}
-                        気になった点や、至らなかった点について、詳しくお聞かせいただければ幸いです。
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6 md:space-y-8">
-                    <Textarea
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      placeholder="担当者の対応や、気になった点について..."
-                      rows={8}
-                      required
-                      className={cn(
-                        'resize-none transition-all duration-200',
-                        'focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
-                        'border-gray-300 rounded-xl',
-                        'text-base md:text-lg leading-relaxed',
-                        'p-4 md:p-6',
-                        'bg-white/80 backdrop-blur-sm',
-                        'font-serif'
-                      )}
-                    />
-
-                    <Button
-                      onClick={handleLowRatingSubmit}
-                      disabled={isSubmitting || !feedback.trim()}
-                      className={cn(
-                        'w-full h-14 md:h-16',
-                        'bg-gradient-to-r from-emerald-500 to-teal-600',
-                        'hover:from-emerald-600 hover:to-teal-700',
-                        'text-white font-semibold text-base md:text-lg',
-                        'transition-all duration-200 active:scale-95',
-                        'shadow-lg hover:shadow-xl',
-                        'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
-                        'rounded-xl'
-                      )}
-                    >
-                      {isSubmitting ? (
-                        <span className="flex items-center justify-center gap-2 md:gap-3">
-                          <svg className="animate-spin h-5 w-5 md:h-6 md:w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          送信中...
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-2 md:gap-3">
-                          感想を届けて、アルバムを開く
-                          <ExternalLink className="w-5 h-5 md:w-6 md:h-6" />
-                        </span>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           )}
         </div>

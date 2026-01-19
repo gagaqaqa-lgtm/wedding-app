@@ -71,6 +71,7 @@ function CoupleHomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const weddingId = searchParams.get('weddingId') || '1';
+  const mode = searchParams.get('mode'); // デモ用デバッグモード
   const [weddingDate, setWeddingDate] = useState<Date | null>(null);
   const [weddingInfo, setWeddingInfo] = useState<{ familyNames?: string } | null>(null);
   const [venueInfo, setVenueInfo] = useState<{ name: string } | null>(null);
@@ -78,7 +79,8 @@ function CoupleHomePageContent() {
   const [daysUntil, setDaysUntil] = useState(0);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [previewTableQR, setPreviewTableQR] = useState<string | null>(null);
-  const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
+  // デモ用: mode=today の場合は強制的に当日モードにする
+  const isWeddingDayOrAfter = mode === 'today' || daysUntil === 0 || daysUntil < 0;
   
   // 全員への写真の状態
   const [sharedPhotos, setSharedPhotos] = useState<File[]>([]);

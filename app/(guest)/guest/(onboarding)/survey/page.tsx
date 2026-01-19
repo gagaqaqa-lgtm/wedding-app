@@ -16,8 +16,6 @@ import confetti from 'canvas-confetti';
 const REVIEW_CONFIG = {
   /** レビュー投稿先URL（管理画面で登録されたURL） */
   url: 'https://maps.google.com/?q=表参道テラス', // TODO: 実際のレビュー投稿URLに置き換え
-  /** 外部誘導する最低星数（この値以上なら外部誘導、未満なら内部フィードバック） */
-  minRatingForExternal: 4, // 4以上なら外部、3以下なら内部
 } as const;
 
 // ============================================================================
@@ -39,9 +37,6 @@ function SurveyContent() {
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [feedbackText, setFeedbackText] = useState('');
-
-  // 評価が高い場合（設定値以上）は外部誘導あり、低い場合（設定値未満）は内部フィードバックのみ
-  const isHighRating = rating >= REVIEW_CONFIG.minRatingForExternal;
 
   // レビュー完了状態をLocalStorageに保存
   const markReviewCompleted = () => {
@@ -138,8 +133,8 @@ function SurveyContent() {
     }, 300);
   };
 
-  // 外部レビューサイトへの誘導（高評価の場合）
-  const handleExternalReviewClick = () => {
+  // Google Mapsレビュー投稿（スコアに関わらず常に利用可能）
+  const handleGoogleMapsClick = () => {
     // 外部サイトを開く
     window.open(REVIEW_CONFIG.url, '_blank', 'noopener,noreferrer');
     
@@ -152,8 +147,13 @@ function SurveyContent() {
     showUnlockAnimation();
   };
 
-  // フィードバック送信（低評価の場合）
-  const handleFeedbackSubmit = () => {
+  // 内部フィードバック送信（スコアに関わらず常に利用可能）
+  const handleInternalFeedbackSubmit = () => {
+    if (!feedbackText.trim()) {
+      toast.error('ご意見を入力してください');
+      return;
+    }
+
     // 将来的にDBに保存する処理をここに追加
     // TODO: API呼び出しでフィードバックを保存
     // TODO: API経由でフィードバックを送信
@@ -327,7 +327,7 @@ function SurveyContent() {
               </motion.div>
             )}
 
-            {/* Step 2: アクション ('action') - ロック解除アクションを実行 */}
+            {/* Step 2: アクション ('action') - ロック解除アクションを実行（スコアに関わらず両方のオプションを表示） */}
             {step === 'action' && (
               <motion.div
                 key="action"
@@ -337,123 +337,109 @@ function SurveyContent() {
                 transition={{ duration: 0.4, ease: 'easeOut' }}
                 className="text-center space-y-6 sm:space-y-8"
               >
-                {/* 高評価（設定値以上）の場合 - 外部レビューサイト誘導 */}
-                {isHighRating && (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.1, duration: 0.3 }}
-                      className="space-y-4"
-                    >
-                      <div className="flex justify-center">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                          <Sparkles className="w-8 h-8 text-white" />
-                        </div>
-                      </div>
-                      <h2 className="text-xl sm:text-2xl font-bold text-emerald-800 font-serif">
-                        素晴らしい評価をありがとうございます！
-                      </h2>
-                      <p className="text-base sm:text-lg text-gray-700 font-serif leading-relaxed px-2">
-                        よろしければレビューサイトにも思い出を投稿していただけませんか？
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.3 }}
+                  className="space-y-4"
+                >
+                  <div className="flex justify-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
+                      <Sparkles className="w-8 h-8 text-white" />
+                    </div>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-emerald-800 font-serif">
+                    ご感想をお聞かせください
+                  </h2>
+                  <p className="text-base sm:text-lg text-gray-700 font-serif leading-relaxed px-2">
+                    より良いサービスを提供するために、ご協力をお願いいたします
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.3 }}
+                  className="space-y-4"
+                >
+                  {/* Google Mapsレビューボタン */}
+                  <motion.button
+                    onClick={handleGoogleMapsClick}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={cn(
+                      "w-full bg-gradient-to-r from-emerald-500 to-teal-600",
+                      "hover:from-emerald-600 hover:to-teal-700",
+                      "text-white font-serif text-lg sm:text-xl font-semibold",
+                      "py-5 sm:py-6 px-8 rounded-2xl",
+                      "shadow-lg hover:shadow-xl",
+                      "transition-all duration-200",
+                      "flex items-center justify-center gap-3",
+                      "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                    )}
+                  >
+                    <ExternalLink className="w-6 h-6" />
+                    <span>Googleマップで応援コメントを書く</span>
+                  </motion.button>
+
+                  {/* 区切り線 */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="bg-white/90 px-4 text-gray-500 font-serif">または</span>
+                    </div>
+                  </div>
+
+                  {/* 内部フィードバックフォーム */}
+                  <div className="space-y-4">
+                    <div className="space-y-2 text-left">
+                      <label className="block text-sm font-semibold text-gray-700 font-serif">
+                        スタッフへ直接メッセージを送る
+                      </label>
+                      <p className="text-xs text-gray-500 font-serif">
+                        返信が必要な方はこちら
                       </p>
-                    </motion.div>
+                    </div>
+                    <textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="ご意見・ご要望・改善してほしい点など、お気軽にお聞かせください..."
+                      rows={5}
+                      className={cn(
+                        "w-full px-4 py-3 rounded-xl",
+                        "bg-emerald-50/50 border-2 border-emerald-200",
+                        "text-gray-800 font-serif text-sm sm:text-base",
+                        "placeholder:text-gray-400",
+                        "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500",
+                        "resize-none transition-all duration-200"
+                      )}
+                    />
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className="space-y-4"
+                    {/* 内部フィードバック送信ボタン */}
+                    <motion.button
+                      onClick={handleInternalFeedbackSubmit}
+                      disabled={!feedbackText.trim()}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={cn(
+                        "w-full bg-gradient-to-r from-emerald-500 to-teal-600",
+                        "hover:from-emerald-600 hover:to-teal-700",
+                        "text-white font-serif text-lg sm:text-xl font-semibold",
+                        "py-5 sm:py-6 px-8 rounded-2xl",
+                        "shadow-lg hover:shadow-xl",
+                        "transition-all duration-200",
+                        "flex items-center justify-center gap-3",
+                        "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
                     >
-                      {/* ロック解除アクションボタン（高評価） */}
-                      <motion.button
-                        onClick={handleExternalReviewClick}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={cn(
-                          "w-full bg-gradient-to-r from-emerald-500 to-teal-600",
-                          "hover:from-emerald-600 hover:to-teal-700",
-                          "text-white font-serif text-lg sm:text-xl font-semibold",
-                          "py-5 sm:py-6 px-8 rounded-2xl",
-                          "shadow-lg hover:shadow-xl",
-                          "transition-all duration-200",
-                          "flex items-center justify-center gap-3",
-                          "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-                        )}
-                      >
-                        <ExternalLink className="w-6 h-6" />
-                        <span>口コミを投稿してロック解除</span>
-                      </motion.button>
-                    </motion.div>
-                  </>
-                )}
-
-                {/* 低評価（設定値未満）の場合 - フィードバック入力 */}
-                {!isHighRating && (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.1, duration: 0.3 }}
-                      className="space-y-4"
-                    >
-                      <div className="flex justify-center">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center">
-                          <Heart className="w-8 h-8 text-emerald-600" />
-                        </div>
-                      </div>
-                      <h2 className="text-xl sm:text-2xl font-bold text-emerald-800 font-serif">
-                        貴重なご意見ありがとうございます
-                      </h2>
-                      <p className="text-base sm:text-lg text-gray-700 font-serif leading-relaxed px-2">
-                        新郎新婦へのメッセージがあればご記入ください
-                      </p>
-                    </motion.div>
-
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2, duration: 0.3 }}
-                      className="space-y-4"
-                    >
-                      <textarea
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        placeholder="ご意見・ご感想をご記入ください（任意）"
-                        rows={5}
-                        className={cn(
-                          "w-full px-4 py-3 rounded-xl",
-                          "bg-emerald-50/50 border-2 border-emerald-200",
-                          "text-gray-800 font-serif text-sm sm:text-base",
-                          "placeholder:text-gray-400",
-                          "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500",
-                          "resize-none transition-all duration-200"
-                        )}
-                      />
-
-                      {/* ロック解除アクションボタン（低評価） */}
-                      <motion.button
-                        onClick={handleFeedbackSubmit}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={cn(
-                          "w-full bg-gradient-to-r from-emerald-500 to-teal-600",
-                          "hover:from-emerald-600 hover:to-teal-700",
-                          "text-white font-serif text-lg sm:text-xl font-semibold",
-                          "py-5 sm:py-6 px-8 rounded-2xl",
-                          "shadow-lg hover:shadow-xl",
-                          "transition-all duration-200",
-                          "flex items-center justify-center gap-3",
-                          "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2",
-                          "disabled:opacity-50 disabled:cursor-not-allowed"
-                        )}
-                      >
-                        <Send className="w-5 h-5" />
-                        <span>メッセージを送信してロック解除</span>
-                      </motion.button>
-                    </motion.div>
-                  </>
-                )}
+                      <Send className="w-5 h-5" />
+                      <span>スタッフへご意見・ご要望を送る</span>
+                    </motion.button>
+                  </div>
+                </motion.div>
               </motion.div>
             )}
 

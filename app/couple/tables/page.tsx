@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -184,13 +184,16 @@ function calculateDaysUntil(targetDate: Date): number {
 
 export default function CoupleTablesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get('mode'); // デモ用デバッグモード
   const [weddingDate, setWeddingDate] = useState<Date | null>(null);
   const [daysUntil, setDaysUntil] = useState(0);
   const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
   const [isLoading, setIsLoading] = useState(false);
   
   // 式前/式後の判定（当日以降は式後とみなす）
-  const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
+  // デモ用: mode=today の場合は強制的に当日モードにする
+  const isWeddingDayOrAfter = mode === 'today' || daysUntil === 0 || daysUntil < 0;
   
   // 挙式日の読み込み
   useEffect(() => {
