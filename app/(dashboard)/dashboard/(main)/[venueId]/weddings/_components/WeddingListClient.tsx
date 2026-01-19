@@ -139,7 +139,6 @@ export function WeddingListClient({ weddings: initialWeddings, venueId }: Weddin
         guestCount: data.guestCount,
         venueId,
         mode: "INTERACTIVE",
-        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
 
