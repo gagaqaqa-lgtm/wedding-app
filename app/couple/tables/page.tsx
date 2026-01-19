@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -182,7 +182,7 @@ function calculateDaysUntil(targetDate: Date): number {
   return diffDays > 0 ? diffDays : 0;
 }
 
-export default function CoupleTablesPage() {
+function CoupleTablesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode'); // デモ用デバッグモード
@@ -989,5 +989,19 @@ export default function CoupleTablesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CoupleTablesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <CoupleTablesContent />
+    </Suspense>
   );
 }
