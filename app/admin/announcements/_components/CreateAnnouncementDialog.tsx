@@ -33,9 +33,7 @@ import type { Announcement, AnnouncementPriority } from '../page';
 const createAnnouncementSchema = z.object({
   title: z.string().min(1, 'タイトルは必須です').max(100, 'タイトルは100文字以内で入力してください'),
   body: z.string().min(1, '本文は必須です').max(1000, '本文は1000文字以内で入力してください'),
-  priority: z.enum(['NORMAL', 'HIGH'], {
-    required_error: '重要度を選択してください',
-  }),
+  priority: z.enum(['NORMAL', 'HIGH']),
 });
 
 type CreateAnnouncementFormValues = z.infer<typeof createAnnouncementSchema>;
