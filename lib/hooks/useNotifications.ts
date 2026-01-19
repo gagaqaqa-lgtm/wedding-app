@@ -68,6 +68,7 @@ export interface UseNotificationsReturn {
  */
 export function useNotifications(venueId: string): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -106,8 +107,8 @@ export function useNotifications(venueId: string): UseNotificationsReturn {
    * notificationsが変更されたときのみ再計算されます。
    */
   const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.isRead).length;
-  }, [notifications]);
+    return notifications.filter((n) => !readIds.has(n.id)).length;
+  }, [notifications, readIds]);
 
   /**
    * 通知を既読にする
@@ -121,18 +122,18 @@ export function useNotifications(venueId: string): UseNotificationsReturn {
   const markAsRead = useCallback(
     async (notificationId: string) => {
       // オプティミスティック更新: 即座にUIを更新
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n))
-      );
+      setReadIds((prev) => new Set(prev).add(notificationId));
 
       try {
         // バックエンドに既読状態を送信
         await markNotificationAsRead(notificationId);
       } catch (err) {
         // エラー時はロールバック
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notificationId ? { ...n, isRead: false } : n))
-        );
+        setReadIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(notificationId);
+          return newSet;
+        });
 
         const error = err instanceof Error ? err : new Error('既読状態の更新に失敗しました');
         setError(error);
@@ -153,7 +154,7 @@ export function useNotifications(venueId: string): UseNotificationsReturn {
   const handleNotificationClick = useCallback(
     (notification: Notification) => {
       // 未読の場合は既読にする
-      if (!notification.isRead) {
+      if (!readIds.has(notification.id)) {
         markAsRead(notification.id);
       }
 
@@ -162,7 +163,7 @@ export function useNotifications(venueId: string): UseNotificationsReturn {
       //   router.push(notification.actionUrl);
       // }
     },
-    [markAsRead]
+    [markAsRead, readIds]
   );
 
   return {

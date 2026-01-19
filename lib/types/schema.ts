@@ -155,10 +155,6 @@ export type {
 // 後方互換性のため、既存の型名もエクスポート（新しい型定義と同じ）
 export type { VenuePlan as VenuePlanType } from './venue';
 export type { VenueStatus as VenueStatusType } from './venue';
-  
-  /** レビュー通知メールアドレス */
-  reviewNotificationEmail?: string;
-}
 
 // ============================================================================
 // 挙式関連
@@ -663,59 +659,25 @@ export interface ActivityLog {
  * すべての型定義をエクスポート
  */
 export type {
-  // ユーザー関連
-  UserRole,
-  User,
-  Guest,
-  GuestStatus,
-  SurveyStatus,
-  AllergyStatus,
-  Account,
-  AccountRole,
-  TeamMember,
-  TeamMemberRole,
-  TeamMemberStatus,
+  // ユーザー関連（UserRole, User, Guest, GuestStatus, SurveyStatus, AllergyStatus, Account, AccountRole, TeamMember, TeamMemberRole, TeamMemberStatus は既に定義時にexport済み）
   
-  // 会場関連
-  VenuePlan,
-  VenueStatus,
-  Venue,
+  // 会場関連（VenuePlan, VenueStatus, Venue は148-153行目で既に再エクスポート済み）
   
-  // 挙式関連
-  WeddingMode,
-  Wedding,
+  // 挙式関連（WeddingMode, Wedding は既に定義時にexport済み）
   
-  // 卓関連
-  Table,
-  SeatingPlan,
+  // 卓関連（Table, SeatingPlan は既に定義時にexport済み）
   
-  // 写真関連
-  PhotoSource,
-  PhotoApprovalStatus,
-  Photo,
+  // 写真関連（PhotoSource, PhotoApprovalStatus, Photo は既に定義時にexport済み）
   
-  // フィードバック関連
-  FeedbackSource,
-  Feedback,
+  // フィードバック関連（FeedbackSource, Feedback は既に定義時にexport済み）
   
-  // 通知関連
-  NotificationType,
-  NotificationPriority,
-  Notification,
+  // 通知関連（NotificationType, NotificationPriority, Notification は既に定義時にexport済み）
   
-  // お知らせ関連
-  AnnouncementPriority,
-  AnnouncementStatus,
-  Announcement,
+  // お知らせ関連（AnnouncementPriority, AnnouncementStatus, Announcement は既に定義時にexport済み）
   
-  // 広告関連
-  Ad,
+  // 広告関連（Ad は既に定義時にexport済み）
   
-  // 統計関連
-  TaskMetrics,
-  VenueStatistics,
+  // 統計関連（TaskMetrics, VenueStatistics は既に定義時にexport済み）
   
-  // アクティビティログ関連
-  ActivityType,
-  ActivityLog,
+  // アクティビティログ関連（ActivityType, ActivityLog は既に定義時にexport済み）
 };

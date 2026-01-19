@@ -1,4 +1,7 @@
+'use client';
+
 import { ReactNode } from 'react';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 /**
  * ダッシュボード共通レイアウト
@@ -13,5 +16,9 @@ export default function DashboardGroupLayout({ children }: { children: ReactNode
   // const session = await getSession();
   // if (!session) redirect('/dashboard/login');
   
-  return <>{children}</>;
+  return (
+    <NotificationProvider>
+      {children}
+    </NotificationProvider>
+  );
 }
