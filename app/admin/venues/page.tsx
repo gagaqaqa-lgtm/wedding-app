@@ -135,14 +135,19 @@ export default function VenuesPage() {
     code: string;
     plan: VenuePlan;
     status: VenueStatus;
-    admin: {
-      name: string;
-      email: string;
-    };
+    adminName: string;
+    adminEmail: string;
   }) => {
     try {
       const result = await createVenue({
-        ...venueData,
+        name: venueData.name,
+        code: venueData.code,
+        plan: venueData.plan,
+        status: venueData.status,
+        admin: {
+          name: venueData.adminName,
+          email: venueData.adminEmail,
+        },
         coverImageUrl: undefined,
         enableLineUnlock: false,
       });
