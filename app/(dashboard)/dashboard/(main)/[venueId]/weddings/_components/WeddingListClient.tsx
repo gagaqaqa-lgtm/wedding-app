@@ -139,7 +139,6 @@ export function WeddingListClient({ weddings: initialWeddings, venueId }: Weddin
         guestCount: data.guestCount,
         venueId,
         mode: "INTERACTIVE",
-        updatedAt: new Date().toISOString(),
       });
 
       // Optimistic UI: 即座にリストに追加（リロードで消える安全設計）
