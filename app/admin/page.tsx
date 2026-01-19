@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getAllVenues } from '@/lib/services/mock/venueService';
 import { useEffect, useState } from 'react';
-import type { Venue } from '@/lib/types/schema';
 import {
   Table,
   TableBody,
