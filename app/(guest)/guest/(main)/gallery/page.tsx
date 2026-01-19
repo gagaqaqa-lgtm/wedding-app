@@ -1922,7 +1922,7 @@ function GalleryContent() {
                 </div>
 
                 {/* LINE連携CTAバナー（STANDARD/PREMIUMプラン向け、LINE未連携の場合のみ） */}
-                {venueInfo?.plan !== 'LIGHT' && venueInfo.enableLineUnlock && !isLineConnected && (
+                {venueInfo?.plan !== 'LIGHT' && venueInfo?.enableLineUnlock && !isLineConnected && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
