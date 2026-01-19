@@ -31,9 +31,7 @@ import type { TeamMember, TeamMemberRole } from '../page';
 // フォームスキーマ
 const inviteMemberSchema = z.object({
   email: z.string().email('有効なメールアドレスを入力してください'),
-  role: z.enum(['OWNER', 'MEMBER'], {
-    required_error: 'ロールを選択してください',
-  }),
+  role: z.enum(['OWNER', 'MEMBER']),
 });
 
 type InviteMemberFormValues = z.infer<typeof inviteMemberSchema>;
