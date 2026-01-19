@@ -41,9 +41,7 @@ export interface Account {
 const addAccountSchema = z.object({
   name: z.string().min(1, '名前は必須です').max(50, '名前は50文字以内で入力してください'),
   email: z.string().email('有効なメールアドレスを入力してください'),
-  role: z.enum(['VENUE_ADMIN', 'PLANNER'], {
-    required_error: '権限を選択してください',
-  }),
+  role: z.enum(['VENUE_ADMIN', 'PLANNER']),
 });
 
 type AddAccountFormValues = z.infer<typeof addAccountSchema>;

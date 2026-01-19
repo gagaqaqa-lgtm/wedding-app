@@ -37,9 +37,7 @@ const createVenueSchema = z.object({
     .min(1, '会場コードは必須です')
     .max(50, '会場コードは50文字以内で入力してください')
     .regex(/^[a-z0-9-]+$/, '会場コードは小文字の英数字とハイフンのみ使用できます'),
-  plan: z.enum(['LIGHT', 'STANDARD', 'PREMIUM'], {
-    required_error: 'プランを選択してください',
-  }),
+  plan: z.enum(['LIGHT', 'STANDARD', 'PREMIUM']),
   // 初期管理者アカウント情報
   adminName: z.string().min(1, '管理者名は必須です').max(50, '管理者名は50文字以内で入力してください'),
   adminEmail: z.string().email('有効なメールアドレスを入力してください'),
