@@ -58,8 +58,7 @@ import {
 } from '@/components/ui/table';
 import { AddAccountDialog, type Account, type AccountRole } from './_components/AddAccountDialog';
 import { ProxyLoginDialog } from '../_components/ProxyLoginDialog';
-import type { VenuePlan, VenueStatus } from '../page';
-import type { Venue } from '@/lib/types/schema';
+import type { Venue, VenuePlan, VenueStatus } from '@/lib/types/schema';
 import { getVenueById, updateVenueSettings } from '@/lib/services/mock/venueService';
 
 // 会場詳細データの拡張型
