@@ -18,7 +18,7 @@ export function BasicMasonryExample() {
     // ... 20枚以上の写真
   ];
 
-  const handlePhotoClick = (photo: typeof photos[0]) => {
+  const handlePhotoClick = (photo: { id: string | number; url: string; alt?: string }) => {
     console.log('Photo clicked:', photo.id);
     // ライトボックスを開くなどの処理
   };
