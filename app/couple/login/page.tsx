@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 
 // 開発用パスワード（IDが1の場合）
 const DEV_PASSWORD = '1234';
 
-export default function CoupleLoginPage() {
+function CoupleLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -150,5 +150,13 @@ export default function CoupleLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CoupleLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">読み込み中...</div>}>
+      <CoupleLoginContent />
+    </Suspense>
   );
 }
