@@ -37,7 +37,7 @@ const getStatusBadgeVariant = (status: VenueStatus): 'indigo' | 'destructive' | 
       return 'indigo';
     case 'SUSPENDED':
       return 'destructive';
-    case 'ONBOARDING':
+    default:
       return 'warning';
   }
 };
@@ -49,8 +49,8 @@ const getStatusLabel = (status: VenueStatus): string => {
       return '稼働中';
     case 'SUSPENDED':
       return '停止中';
-    case 'ONBOARDING':
-      return '導入中';
+    default:
+      return 'その他';
   }
 };
 
