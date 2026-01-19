@@ -92,3 +92,36 @@ export async function getGuestInfo(guestId: string): Promise<Guest> {
     updatedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * 挙式に紐づくフィードバック一覧を取得
+ * 
+ * BACKEND_TODO: Replace with actual API call
+ * API Endpoint: GET /api/weddings/:weddingId/feedbacks
+ * 
+ * @param weddingId - 挙式ID
+ * @returns フィードバックの配列
+ */
+export async function getFeedbacks(weddingId: string): Promise<Feedback[]> {
+  // Mockデータ
+  return [
+    {
+      id: 'feedback-1',
+      content: '素晴らしい式でした！',
+      rating: 5,
+      source: 'GUEST',
+      weddingId,
+      userId: 'guest-1',
+      createdAt: new Date('2026-10-25T14:30:00').toISOString(),
+    },
+    {
+      id: 'feedback-2',
+      content: '料理の提供が遅く、ゲストの方が待たされてしまいました。',
+      rating: 2,
+      source: 'GUEST',
+      weddingId,
+      userId: 'guest-2',
+      createdAt: new Date('2026-10-25T15:00:00').toISOString(),
+    },
+  ];
+}

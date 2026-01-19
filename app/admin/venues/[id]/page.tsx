@@ -19,6 +19,9 @@ import {
   Plus,
   UserCircle,
   Store,
+  ShieldCheck,
+  Copy,
+  KeyRound,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,10 +29,21 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -43,14 +57,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { AddAccountDialog, type Account, type AccountRole } from './_components/AddAccountDialog';
-import type { Venue, VenuePlan, VenueStatus } from '../page';
+import { ProxyLoginDialog } from '../_components/ProxyLoginDialog';
+import type { VenuePlan, VenueStatus } from '../page';
+import type { Venue } from '@/lib/types/schema';
+import { getVenueById, updateVenueSettings } from '@/lib/services/mock/venueService';
 
 // 会場詳細データの拡張型
 interface VenueDetail extends Venue {
-  monthlyWeddings: number; // 今月の挙式数
-  monthlyGuests: number; // 今月のゲスト数
-  storageUsed: number; // GB（現在の使用量）
-  monthlyAdRevenue: number; // 今月の広告収益（円）
+  monthlyWeddings?: number; // 今月の挙式数
+  monthlyGuests?: number; // 今月のゲスト数
+  storageUsed?: number; // GB（現在の使用量）
+  monthlyAdRevenue?: number; // 今月の広告収益（円）
 }
 
 // アクティビティログ型
@@ -61,55 +78,13 @@ interface ActivityLog {
   timestamp: Date;
 }
 
-// モックデータ（IDに基づいて会場を取得）
-const getVenueById = (id: string): VenueDetail | null => {
-  const venues: Record<string, VenueDetail> = {
-    'v_001': {
-      id: 'v_001',
-      name: 'グランドホテル東京',
-      code: 'grand-hotel-tokyo',
-      plan: 'PREMIUM',
-      status: 'ACTIVE',
-      lastActiveAt: new Date('2024-01-15T10:30:00'),
-      adminName: '山田 太郎',
-      adminEmail: 'admin@grandhotel-tokyo.jp',
-      monthlyWeddings: 6,
-      monthlyGuests: 450,
-      storageUsed: 45.2,
-      monthlyAdRevenue: 32000,
-    },
-    'v_002': {
-      id: 'v_002',
-      name: 'オーシャンビュー横浜',
-      code: 'oceanview-yokohama',
-      plan: 'PREMIUM',
-      status: 'ACTIVE',
-      lastActiveAt: new Date('2024-01-14T15:20:00'),
-      adminName: '佐藤 花子',
-      adminEmail: 'contact@oceanview-yokohama.jp',
-      monthlyWeddings: 5,
-      monthlyGuests: 380,
-      storageUsed: 28.5,
-      monthlyAdRevenue: 28000,
-    },
-    'v_003': {
-      id: 'v_003',
-      name: 'ガーデンウェディング大阪',
-      code: 'garden-wedding-osaka',
-      plan: 'STANDARD',
-      status: 'ACTIVE',
-      lastActiveAt: new Date('2024-01-13T09:15:00'),
-      adminName: '鈴木 一郎',
-      adminEmail: 'info@garden-wedding-osaka.jp',
-      monthlyWeddings: 4,
-      monthlyGuests: 320,
-      storageUsed: 18.3,
-      monthlyAdRevenue: 15000,
-    },
-  };
-
-  return venues[id] || null;
-};
+// デフォルトの統計データ（会場が見つからない場合や新規作成された場合）
+const getDefaultStats = (): { monthlyWeddings: number; monthlyGuests: number; storageUsed: number; monthlyAdRevenue: number } => ({
+  monthlyWeddings: 0,
+  monthlyGuests: 0,
+  storageUsed: 0,
+  monthlyAdRevenue: 0,
+});
 
 // アクティビティログのモックデータ
 const getActivityLogs = (venueId: string): ActivityLog[] => {
@@ -315,14 +290,54 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState('overview');
   const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
+  const [isProxyLoginDialogOpen, setIsProxyLoginDialogOpen] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [venue, setVenue] = useState<VenueDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
-  const venue = getVenueById(id);
+  // 会場情報の読み込み
+  useEffect(() => {
+    const loadVenue = async () => {
+      try {
+        const venueData = await getVenueById(id);
+        if (venueData) {
+          // 統計データを追加（既存の会場にはデフォルト値を設定）
+          const venueWithStats: VenueDetail = {
+            ...venueData,
+            ...getDefaultStats(),
+          };
+          setVenue(venueWithStats);
+        } else {
+          setVenue(null);
+        }
+      } catch (error) {
+        console.error('Failed to load venue:', error);
+        setVenue(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadVenue();
+  }, [id]);
+
   const activityLogs = getActivityLogs(id);
 
   // 会場情報の編集用状態
   const [venueName, setVenueName] = useState(venue?.name || '');
-  const [venueEmail, setVenueEmail] = useState(venue?.adminEmail || '');
+  const [venueEmail, setVenueEmail] = useState(venue?.admin.email || '');
+  const [venuePlan, setVenuePlan] = useState<VenuePlan>(venue?.plan || 'PREMIUM');
+  const [enableLineUnlock, setEnableLineUnlock] = useState(venue?.enableLineUnlock || false);
+
+  // 会場データが読み込まれたら編集用状態を更新
+  useEffect(() => {
+    if (venue) {
+      setVenueName(venue.name);
+      setVenueEmail(venue.admin.email);
+      setVenuePlan(venue.plan);
+      setEnableLineUnlock(venue.enableLineUnlock || false);
+    }
+  }, [venue]);
 
   // アカウントデータの初期化
   useEffect(() => {
@@ -331,6 +346,22 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
     }
   }, [id]);
 
+  // ローディング状態
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col min-h-screen font-sans antialiased">
+        <div className="flex-1 overflow-auto bg-slate-50 flex items-center justify-center">
+          <Card className="max-w-md">
+            <CardContent className="pt-6">
+              <p className="text-center text-gray-500 font-sans antialiased">読み込み中...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // 会場が見つからない場合
   if (!venue) {
     return (
       <div className="flex-1 flex flex-col min-h-screen font-sans antialiased">
@@ -351,11 +382,22 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
     );
   }
 
+  // 代理ログインの確認モーダルを開く
   const handleLoginAsVenue = () => {
-    toast.success('会場管理者としてログインしました', {
-      description: `${venue.name} のダッシュボードに遷移します。`,
+    setIsProxyLoginDialogOpen(true);
+  };
+
+  // 代理ログイン成功時の処理（共通コンポーネントからのコールバック）
+  const handleProxyLoginSuccess = (venueId: string) => {
+    if (!venue) return;
+
+    toast.success(`${venue.name}としてログインしました`, {
+      description: 'サポートモードでダッシュボードを別タブで開きます。',
+      duration: 3000,
     });
-    // TODO: 実際のログイン処理
+
+    // サポートモードでダッシュボード画面を別タブで開く
+    window.open(`/dashboard/${venueId}?mode=support`, '_blank', 'noopener,noreferrer');
   };
 
   const handleSuspend = () => {
@@ -382,6 +424,67 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
     setAccounts((prev) => [...prev, account]);
   };
 
+  // サポートアカウント作成ハンドラー
+  const handleCreateSupportAccount = () => {
+    if (!venue) return;
+
+    const supportEmail = `support+${venue.id}@paplea.com`;
+    
+    // 既存のサポートアカウントが存在するか確認
+    const existingSupportAccount = accounts.find((acc) => acc.email === supportEmail);
+    
+    if (existingSupportAccount) {
+      toast.error('サポートアカウントは既に存在します', {
+        description: 'この会場には既にサポートアカウントが発行されています。',
+      });
+      return;
+    }
+
+    // 新しいサポートアカウントを作成
+    const newSupportAccount: Account = {
+      id: `acc_support_${Date.now()}`,
+      name: "Paple'a Support",
+      email: supportEmail,
+      role: 'VENUE_ADMIN',
+      joinedAt: new Date(),
+    };
+
+    const password = `${venue.id}123`;
+
+    setAccounts((prev) => [...prev, newSupportAccount]);
+    
+    // 発行完了ダイアログを開く
+    setCreatedCredentials({
+      email: supportEmail,
+      password: password,
+    });
+  };
+
+  // コピー機能
+  const handleCopyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label}をコピーしました`, {
+        description: 'クリップボードにコピーされました。',
+      });
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('コピーに失敗しました', {
+        description: 'もう一度お試しください。',
+      });
+    }
+  };
+
+  // パスワードリセットハンドラー
+  const handleResetPassword = (accountId: string) => {
+    if (confirm('パスワードを初期値にリセットしますか？')) {
+      toast.success('パスワードをリセットしました');
+    }
+  };
+
+  // サポートアカウントが既に存在するか確認
+  const hasSupportAccount = accounts.some((acc) => acc.email.includes('@paplea.com'));
+
   // アカウント削除ハンドラー
   const handleDeleteAccount = (accountId: string) => {
     if (confirm('このアカウントを削除しますか？')) {
@@ -390,6 +493,47 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
         description: 'アカウントが正常に削除されました。',
       });
     }
+  };
+
+  // 会場設定更新ハンドラー
+  const handleUpdateVenueSettings = async (updates: Partial<Venue>) => {
+    if (!venue) return;
+    
+    try {
+      const updatedVenue = await updateVenueSettings(venue.id, updates);
+      setVenue((prev) => prev ? { ...prev, ...updatedVenue } : null);
+      toast.success('設定を更新しました', {
+        description: '会場の設定が正常に更新されました。',
+      });
+    } catch (error) {
+      console.error('Failed to update venue settings:', error);
+      toast.error('更新に失敗しました', {
+        description: 'もう一度お試しください。',
+      });
+    }
+  };
+
+  // プラン変更ハンドラー
+  const handlePlanChange = (newPlan: VenuePlan) => {
+    setVenuePlan(newPlan);
+    // プランに応じてLINE連携機能を自動設定
+    const updates: Partial<Venue> = { plan: newPlan };
+    if (newPlan === 'LIGHT') {
+      // LIGHTプランは強制OFF
+      updates.enableLineUnlock = false;
+      setEnableLineUnlock(false);
+    } else {
+      // STANDARD/PREMIUMプランはデフォルトON（親切設計）
+      updates.enableLineUnlock = true;
+      setEnableLineUnlock(true);
+    }
+    handleUpdateVenueSettings(updates);
+  };
+
+  // LINE連携機能切り替えハンドラー
+  const handleLineUnlockToggle = (checked: boolean) => {
+    setEnableLineUnlock(checked);
+    handleUpdateVenueSettings({ enableLineUnlock: checked });
   };
 
   return (
@@ -425,7 +569,7 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                       {getStatusLabel(venue.status)}
                     </Badge>
                     <span className="text-sm text-gray-500 font-sans antialiased">
-                      最終ログイン: {format(venue.lastActiveAt, 'yyyy/MM/dd HH:mm', { locale: ja })}
+                      最終ログイン: {format(new Date(venue.lastActiveAt), 'yyyy/MM/dd HH:mm', { locale: ja })}
                     </span>
                   </div>
                 </div>
@@ -495,7 +639,7 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                         <div>
                           <p className="text-sm text-gray-600 font-sans antialiased mb-1">今月の挙式数</p>
                           <p className="text-2xl font-bold text-gray-900 font-sans antialiased">
-                            {venue.monthlyWeddings}
+                            {venue.monthlyWeddings ?? 0}
                           </p>
                           <p className="text-xs text-gray-500 font-sans antialiased mt-1">組</p>
                           <p className="text-xs text-gray-400 font-sans antialiased mt-1">
@@ -515,7 +659,7 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                         <div>
                           <p className="text-sm text-gray-600 font-sans antialiased mb-1">今月のゲスト数</p>
                           <p className="text-2xl font-bold text-gray-900 font-sans antialiased">
-                            {venue.monthlyGuests.toLocaleString()}
+                            {(venue.monthlyGuests ?? 0).toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-500 font-sans antialiased mt-1">人</p>
                           <p className="text-xs text-gray-400 font-sans antialiased mt-1">
@@ -535,7 +679,7 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                         <div>
                           <p className="text-sm text-gray-600 font-sans antialiased mb-1">ストレージ使用量</p>
                           <p className="text-2xl font-bold text-gray-900 font-sans antialiased">
-                            {venue.storageUsed}
+                            {venue.storageUsed ?? 0}
                           </p>
                           <p className="text-xs text-gray-500 font-sans antialiased mt-1">GB</p>
                           <p className="text-xs text-gray-400 font-sans antialiased mt-1">
@@ -555,7 +699,7 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                         <div>
                           <p className="text-sm text-gray-600 font-sans antialiased mb-1">今月の広告収益</p>
                           <p className="text-2xl font-bold text-gray-900 font-sans antialiased">
-                            ¥{venue.monthlyAdRevenue.toLocaleString()}
+                            ¥{(venue.monthlyAdRevenue ?? 0).toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-400 font-sans antialiased mt-1">
                             Target: {format(new Date(), 'MMM yyyy', { locale: ja })}
@@ -618,13 +762,24 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                           この会場に所属するプランナーと管理者を管理します
                         </CardDescription>
                       </div>
-                      <Button
-                        onClick={() => setIsAddAccountDialogOpen(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-sans antialiased"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        アカウント追加
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handleCreateSupportAccount}
+                          disabled={hasSupportAccount}
+                          variant="outline"
+                          className="font-sans antialiased"
+                        >
+                          <ShieldCheck className="w-4 h-4 mr-2" />
+                          サポートアカウント発行
+                        </Button>
+                        <Button
+                          onClick={() => setIsAddAccountDialogOpen(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-sans antialiased"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          アカウント追加
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -646,16 +801,25 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          accounts.map((account) => (
-                            <TableRow key={account.id} className="hover:bg-indigo-50 transition-colors">
+                          accounts.map((account, index) => {
+                            const isSupportAccount = account.email.endsWith('@paplea.com');
+                            return (
+                            <TableRow key={`${account.id}-${index}`} className="hover:bg-indigo-50 transition-colors">
                               <TableCell>
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
                                     <UserCircle className="w-5 h-5 text-indigo-600" />
                                   </div>
-                                  <span className="font-medium text-gray-900 font-sans antialiased">
-                                    {account.name}
-                                  </span>
+                                  <div className="flex items-center">
+                                    <span className="font-medium text-gray-900 font-sans antialiased">
+                                      {account.name}
+                                    </span>
+                                    {isSupportAccount && (
+                                      <Badge variant="outline" className="ml-2 border-indigo-200 text-indigo-700 bg-indigo-50 font-sans antialiased">
+                                        SUPPORT
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell className="font-sans antialiased">{account.email}</TableCell>
@@ -671,17 +835,43 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                                 {format(account.joinedAt, 'yyyy/MM/dd', { locale: ja })}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteAccount(account.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 font-sans antialiased"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                <div className="relative inline-block text-left">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger 
+                                      asChild={false}
+                                      className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors z-20 relative cursor-pointer"
+                                      data-dropdown-trigger={`account-${account.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      <MoreVertical className="h-4 w-4 text-gray-600" />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuPortal>
+                                      <DropdownMenuContent align="end" className="w-48 bg-white shadow-lg border border-gray-200 z-50">
+                                        <DropdownMenuItem 
+                                          onClick={() => handleResetPassword(account.id)}
+                                          className="cursor-pointer hover:bg-gray-100 py-2.5 px-3"
+                                        >
+                                          <KeyRound className="w-4 h-4 mr-2" />
+                                          パスワードリセット
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={() => handleDeleteAccount(account.id)}
+                                          className="text-red-600 cursor-pointer hover:bg-red-50 py-2.5 px-3"
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          削除
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenuPortal>
+                                  </DropdownMenu>
+                                </div>
                               </TableCell>
                             </TableRow>
-                          ))
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -741,6 +931,83 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
                       <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-sans antialiased">
                         保存
                       </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 契約・機能設定 */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-sans antialiased">契約・機能設定</CardTitle>
+                    <CardDescription className="font-sans antialiased">
+                      会場の契約プランと機能を管理します
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* プラン設定 */}
+                    <div className="space-y-3">
+                      <Label className="font-sans antialiased text-base font-semibold">契約プラン</Label>
+                      <RadioGroup
+                        value={venuePlan}
+                        onValueChange={(val) => handlePlanChange(val as VenuePlan)}
+                        className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                      >
+                        <div className="flex items-start space-x-3 border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <RadioGroupItem value="LIGHT" id="plan-light" className="mt-1" />
+                          <Label htmlFor="plan-light" className="cursor-pointer flex-1">
+                            <div className="font-semibold text-gray-900 font-sans antialiased">LIGHT</div>
+                            <div className="text-xs text-gray-500 font-sans antialiased mt-1">
+                              広告あり / 費用安
+                            </div>
+                          </Label>
+                        </div>
+                        <div className="flex items-start space-x-3 border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <RadioGroupItem value="STANDARD" id="plan-standard" className="mt-1" />
+                          <Label htmlFor="plan-standard" className="cursor-pointer flex-1">
+                            <div className="font-semibold text-gray-900 font-sans antialiased">STANDARD</div>
+                            <div className="text-xs text-gray-500 font-sans antialiased mt-1">
+                              広告なし / LINE連携可
+                            </div>
+                          </Label>
+                        </div>
+                        <div className="flex items-start space-x-3 border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <RadioGroupItem value="PREMIUM" id="plan-premium" className="mt-1" />
+                          <Label htmlFor="plan-premium" className="cursor-pointer flex-1">
+                            <div className="font-semibold text-gray-900 font-sans antialiased">PREMIUM</div>
+                            <div className="text-xs text-gray-500 font-sans antialiased mt-1">
+                              全機能開放
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {/* LINE連携設定 */}
+                    <div 
+                      className={`flex items-center justify-between border border-gray-200 p-4 rounded-lg transition-opacity ${
+                        venuePlan === 'LIGHT' ? 'opacity-60' : 'opacity-100'
+                      }`}
+                    >
+                      <div className="space-y-0.5 flex-1">
+                        <Label className="font-sans antialiased text-base font-semibold">LINE連携による制限解除</Label>
+                        <p className="text-sm font-sans antialiased">
+                          {venuePlan === 'LIGHT' ? (
+                            <span className="text-amber-600 font-medium">
+                              ※STANDARDプラン以上で利用可能です
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">
+                              ゲストがLINE友達追加することで、写真アップロード枚数制限を解除する機能を有効にします（STANDARD以上推奨）。
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={enableLineUnlock}
+                        onCheckedChange={handleLineUnlockToggle}
+                        disabled={venuePlan === 'LIGHT'}
+                        className="ml-4"
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -810,6 +1077,85 @@ export default function VenueDetailPage({ params }: VenueDetailPageProps) {
         onOpenChange={setIsAddAccountDialogOpen}
         onSuccess={handleAddAccount}
       />
+
+      {/* 代理ログイン確認ダイアログ */}
+      {venue && (
+        <ProxyLoginDialog
+          open={isProxyLoginDialogOpen}
+          onOpenChange={setIsProxyLoginDialogOpen}
+          venueId={venue.id}
+          venueName={venue.name}
+          onSuccess={handleProxyLoginSuccess}
+        />
+      )}
+
+      {/* サポートアカウント発行完了ダイアログ */}
+      <Dialog open={!!createdCredentials} onOpenChange={(open) => !open && setCreatedCredentials(null)}>
+        <DialogContent className="font-sans antialiased">
+          <DialogHeader>
+            <DialogTitle>サポートアカウントを発行しました</DialogTitle>
+            <DialogDescription>
+              以下の認証情報をコピーして、安全な場所に保管してください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* メールアドレス */}
+            <div className="space-y-2">
+              <Label htmlFor="support-email" className="text-sm font-semibold">
+                メールアドレス
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="support-email"
+                  value={createdCredentials?.email || ''}
+                  readOnly
+                  className="font-mono"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => createdCredentials && handleCopyToClipboard(createdCredentials.email, 'メールアドレス')}
+                  className="flex-shrink-0"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* パスワード */}
+            <div className="space-y-2">
+              <Label htmlFor="support-password" className="text-sm font-semibold">
+                初期パスワード
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="support-password"
+                  type="text"
+                  value={createdCredentials?.password || ''}
+                  readOnly
+                  className="font-mono"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => createdCredentials && handleCopyToClipboard(createdCredentials.password, 'パスワード')}
+                  className="flex-shrink-0"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setCreatedCredentials(null)}
+              className="font-sans antialiased"
+            >
+              閉じる
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

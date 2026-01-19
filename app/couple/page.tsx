@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils/cn';
-import { Users, Grid, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Users, Grid, ArrowRight, CheckCircle2, AlertCircle, QrCode, Copy, Download, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { PostWeddingThankYouCard } from '@/components/PostWeddingThankYouCard';
 import { getWeddingInfo, getWeddingTables, getWeddingDate } from '@/lib/services/mock/weddingService';
+import { getVenueInfo } from '@/lib/services/mock/venueService';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -54,13 +57,27 @@ function calculateDaysUntil(targetDate: Date): number {
   return diffDays > 0 ? diffDays : 0;
 }
 
-const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+// 日付フォーマット関数
+function formatWeddingDate(date: Date): string {
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const weekday = weekdays[date.getDay()];
+  return `${year}.${month}.${day} (${weekday})`;
+}
 
-export default function CoupleHomePage() {
+function CoupleHomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const weddingId = searchParams.get('weddingId') || '1';
   const [weddingDate, setWeddingDate] = useState<Date | null>(null);
+  const [weddingInfo, setWeddingInfo] = useState<{ familyNames?: string } | null>(null);
+  const [venueInfo, setVenueInfo] = useState<{ name: string } | null>(null);
   const [tables, setTables] = useState<Array<{ id: string; name: string; isCompleted: boolean }>>([]);
   const [daysUntil, setDaysUntil] = useState(0);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [previewTableQR, setPreviewTableQR] = useState<string | null>(null);
   const isWeddingDayOrAfter = daysUntil === 0 || daysUntil < 0;
   
   // 全員への写真の状態
@@ -80,20 +97,25 @@ export default function CoupleHomePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [wedding, weddingTables, date] = await Promise.all([
-          getWeddingInfo(MOCK_WEDDING_ID),
-          getWeddingTables(MOCK_WEDDING_ID),
-          getWeddingDate(MOCK_WEDDING_ID),
+        const [wedding, weddingTables, date, venue] = await Promise.all([
+          getWeddingInfo(weddingId),
+          getWeddingTables(weddingId),
+          getWeddingDate(weddingId),
+          getVenueInfo('venue-standard'), // TODO: 実際のvenueIdを取得
         ]);
+        setWeddingInfo(wedding);
         setWeddingDate(date);
         setTables(weddingTables.map(t => ({ id: t.id, name: t.name, isCompleted: t.isCompleted })));
         setDaysUntil(calculateDaysUntil(date));
+        if (venue) {
+          setVenueInfo({ name: venue.name });
+        }
       } catch (error) {
         console.error('Failed to load wedding data:', error);
       }
     };
     loadData();
-  }, []);
+  }, [weddingId]);
 
   // 進捗計算
   const sharedCompleted = sharedPhotos.length > 0 || sharedMessage.length > 0;
@@ -146,6 +168,39 @@ export default function CoupleHomePage() {
     setIsPreviewOpen(true);
   };
 
+  // 卓ごとの招待URL生成（モック）
+  const getTableInvitationUrl = (tableId: string, tableName: string) => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/guest/gallery?weddingId=${weddingId}&table=${tableId}`;
+  };
+
+  // 卓ごとのURLをコピーする関数
+  const handleCopyTableUrl = async (tableId: string, tableName: string) => {
+    try {
+      const url = getTableInvitationUrl(tableId, tableName);
+      await navigator.clipboard.writeText(url);
+      toast.success(`${tableName}のURLをコピーしました`, {
+        description: '席札に印刷できます',
+      });
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+      toast.error('コピーに失敗しました');
+    }
+  };
+
+  // QRプレビューを閉じる
+  const handleCloseQRPreview = () => {
+    setPreviewTableQR(null);
+  };
+
+  // 全卓分を一括ダウンロード（モック）
+  const handleDownloadAllQRs = () => {
+    toast.success('QRコード一括ダウンロードを開始しました', {
+      description: '全卓分のQRコードを含むZIPファイルを準備中です',
+      duration: 3000,
+    });
+  };
+
   const coupleId = 1;
 
   // 挙式後の場合は、サンクスレターカードを表示
@@ -166,6 +221,62 @@ export default function CoupleHomePage() {
     <div className="min-h-dvh bg-gray-50 pb-24">
       {/* メインコンテンツ */}
       <div className="max-w-md mx-auto px-4 py-4 md:py-6 space-y-3 md:space-y-6">
+        {/* ヘッダー情報 */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-4 md:mb-6"
+        >
+          {venueInfo && (
+            <p className="text-sm text-gray-500 mb-2">
+              {venueInfo.name}
+            </p>
+          )}
+          {weddingDate && (
+            <p className="text-lg font-bold text-gray-900 mb-2">
+              {formatWeddingDate(weddingDate)}
+            </p>
+          )}
+          {daysUntil > 0 && (
+            <p className="text-base text-gray-700">
+              あと <span className="font-bold text-emerald-600">{daysUntil}</span> 日
+            </p>
+          )}
+        </motion.div>
+
+        {/* ゲストへ招待を送るセクション */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="mb-4 md:mb-6"
+        >
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-5">
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <QrCode className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900 mb-1">
+                  席札用QRコード・URL
+                </h3>
+                <p className="text-xs text-gray-600">
+                  各卓ごとのQRコードを確認できます。席札への印刷などにご利用ください。
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowShareDialog(true)}
+                variant="outline"
+                size="sm"
+                className="flex-shrink-0 border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+              >
+                表示する
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+
         {/* ゲストおもてなし準備: ステップガイド */}
         <section>
           <div className="mb-4 md:mb-6">
@@ -522,6 +633,138 @@ export default function CoupleHomePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 席札用QRコード・URLダイアログ */}
+      <Dialog open={showShareDialog} onOpenChange={(open) => {
+        setShowShareDialog(open);
+        if (!open) {
+          setPreviewTableQR(null); // ダイアログを閉じる際にプレビューも閉じる
+        }
+      }}>
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>席札用QRコード・URL</DialogTitle>
+            <DialogDescription>
+              各卓ごとのQRコードを確認できます。席札への印刷などにご利用ください。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-6 space-y-4">
+            {/* QRプレビュー表示（選択された卓がある場合） */}
+            {previewTableQR ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-900">
+                    {tables.find(t => t.id === previewTableQR)?.name || '卓'}のQRコード
+                  </h4>
+                  <Button
+                    onClick={handleCloseQRPreview}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-gray-500 hover:text-gray-700"
+                  >
+                    <Icons.X className="w-4 h-4 mr-1" />
+                    閉じる
+                  </Button>
+                </div>
+                <div className="flex justify-center py-4 bg-gray-50 rounded-lg">
+                  <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center border-2 border-gray-200 shadow-sm">
+                    <QrCode className="w-24 h-24 text-gray-400" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 break-all">
+                    {getTableInvitationUrl(previewTableQR, tables.find(t => t.id === previewTableQR)?.name || '')}
+                  </div>
+                  <Button
+                    onClick={() => handleCopyTableUrl(previewTableQR, tables.find(t => t.id === previewTableQR)?.name || '卓')}
+                    variant="outline"
+                    size="sm"
+                    className="flex-shrink-0 border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                  >
+                    <Copy className="w-4 h-4 mr-1.5" />
+                    コピー
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* 卓リスト */}
+                {tables.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">卓データがありません</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {tables.map((table) => (
+                      <motion.div
+                        key={table.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:border-emerald-300 hover:shadow-sm transition-all duration-200"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-semibold text-gray-900">
+                            {table.name}卓
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            onClick={() => setPreviewTableQR(table.id)}
+                            variant="outline"
+                            size="sm"
+                            className="border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <QrCode className="w-4 h-4 mr-1.5" />
+                            表示
+                          </Button>
+                          <Button
+                            onClick={() => handleCopyTableUrl(table.id, table.name)}
+                            variant="outline"
+                            size="sm"
+                            className="border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <Copy className="w-4 h-4 mr-1.5" />
+                            URLコピー
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 一括ダウンロードボタン */}
+                {tables.length > 0 && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <Button
+                      onClick={handleDownloadAllQRs}
+                      variant="outline"
+                      className="w-full border-emerald-300 text-emerald-600 hover:bg-emerald-50"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      全卓分を一括ダウンロード（ZIP）
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function CoupleHomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-500">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <CoupleHomePageContent />
+    </Suspense>
   );
 }

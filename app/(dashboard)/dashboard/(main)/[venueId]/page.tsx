@@ -1,9 +1,9 @@
 "use client";
 
-import { use, Suspense } from 'react';
+import { use, Suspense, useState, useEffect } from 'react';
 import Link from "next/link";
 import type { Notification } from "@/lib/data/notifications";
-import { getVenueInfo } from "@/lib/constants/venues";
+import { getVenueById } from "@/lib/services/mock/venueService";
 import { useNotification } from "@/contexts/NotificationContext";
 import { FeedbackFeed } from "./_components/FeedbackFeed";
 
@@ -75,7 +75,29 @@ interface VenueDashboardPageProps {
 
 export default function VenueDashboardPage({ params }: VenueDashboardPageProps) {
   const { venueId } = use(params);
-  const venueInfo = getVenueInfo(venueId);
+  
+  // 会場情報の取得（非同期）
+  const [venueInfo, setVenueInfo] = useState<{ id: string; name: string } | null>(null);
+  const [isLoadingVenue, setIsLoadingVenue] = useState(true);
+  
+  useEffect(() => {
+    const loadVenueInfo = async () => {
+      try {
+        const venue = await getVenueById(venueId);
+        if (venue) {
+          setVenueInfo({ id: venue.id, name: venue.name });
+        } else {
+          setVenueInfo({ id: venueId, name: '不明な会場' });
+        }
+      } catch (error) {
+        console.error('Failed to load venue info:', error);
+        setVenueInfo({ id: venueId, name: '不明な会場' });
+      } finally {
+        setIsLoadingVenue(false);
+      }
+    };
+    loadVenueInfo();
+  }, [venueId]);
 
   const menuItems = [
     {
@@ -129,7 +151,13 @@ export default function VenueDashboardPage({ params }: VenueDashboardPageProps) 
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-800 leading-tight">ダッシュボード</h1>
-                <p className="text-sm text-gray-600 mt-1">会場: {venueInfo.name} ({venueId})</p>
+                {isLoadingVenue ? (
+                  <p className="text-sm text-gray-600 mt-1">読み込み中...</p>
+                ) : (
+                  <p className="text-sm text-gray-600 mt-1">
+                    会場: {venueInfo?.name || '不明な会場'} ({venueId})
+                  </p>
+                )}
               </div>
             </div>
           </div>

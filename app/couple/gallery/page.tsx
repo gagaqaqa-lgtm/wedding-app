@@ -11,6 +11,9 @@ import { Lock, Gift, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { getWeddingDate, getWeddingInfo } from '@/lib/services/mock/weddingService';
+import { getPhotosByWedding } from '@/lib/services/mock/photoService';
+import type { Photo } from '@/lib/types/schema';
 
 // アイコン (インラインSVG)
 const Icons = {
@@ -48,7 +51,7 @@ const Icons = {
   ),
 };
 
-const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+const MOCK_WEDDING_ID = '1'; // TODO: 認証情報から取得
 
 // カウントダウン計算関数
 function calculateDaysUntil(targetDate: Date): number {
@@ -72,6 +75,15 @@ function formatWeddingDate(date: Date): string {
 }
 
 type TabType = 'all' | 'table';
+
+// PhotoItem型定義
+interface PhotoItem {
+  id: string;
+  url: string;
+  tableId: string | null;
+  timestamp: Date;
+  isFavorite: boolean;
+}
 
 export default function CoupleGalleryPage() {
   const router = useRouter();

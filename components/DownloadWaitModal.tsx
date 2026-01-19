@@ -68,9 +68,11 @@ export function DownloadWaitModal({
         if (next <= 0) {
           clearInterval(interval);
           clearInterval(progressInterval);
-          // ダウンロード開始
-          onDownloadStart();
-          onOpenChange(false);
+          // ダウンロード開始（状態更新を次のイベントループで実行）
+          setTimeout(() => {
+            onDownloadStart();
+            onOpenChange(false);
+          }, 0);
           return 0;
         }
         return next;

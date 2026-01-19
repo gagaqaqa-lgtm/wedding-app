@@ -43,23 +43,6 @@ function SurveyContent() {
   // 評価が高い場合（設定値以上）は外部誘導あり、低い場合（設定値未満）は内部フィードバックのみ
   const isHighRating = rating >= REVIEW_CONFIG.minRatingForExternal;
 
-  // 初期状態：ロックされた鍵アイコンを表示
-  useEffect(() => {
-    // 少し遅延してから評価ステップへ遷移（ロック状態を一瞬表示）
-    const timer = setTimeout(() => {
-      setStep('rating');
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleStarClick = (value: number) => {
-    setRating(value);
-    // 星をクリックした瞬間にアクションステップへ遷移
-    setTimeout(() => {
-      setStep('action');
-    }, 300);
-  };
-
   // レビュー完了状態をLocalStorageに保存
   const markReviewCompleted = () => {
     try {
@@ -122,6 +105,37 @@ function SurveyContent() {
     
     // 紙吹雪エフェクトを発火
     triggerConfetti();
+  };
+
+  // 初期状態：ロックされた鍵アイコンを表示
+  useEffect(() => {
+    // 少し遅延してから分岐（ロック状態を一瞬表示して演出を維持）
+    const timer = setTimeout(() => {
+      // localStorageチェック
+      const storageKey = getReviewStorageKey(guestId);
+      const isCompleted = localStorage.getItem(storageKey) === 'true';
+
+      if (isCompleted) {
+        // 完了済みなら、評価をスキップして「解錠アニメーション」へ
+        // ※紙吹雪も発火させてより良い体験を提供
+        setStep('unlocking');
+        triggerConfetti();
+        // 注意: markReviewCompleted() は既に完了済みなので呼ばない
+      } else {
+        // 未完了なら、評価画面へ
+        setStep('rating');
+      }
+    }, 1000); // 1秒間は必ずロック画面を見せる（演出）
+
+    return () => clearTimeout(timer);
+  }, [guestId]);
+
+  const handleStarClick = (value: number) => {
+    setRating(value);
+    // 星をクリックした瞬間にアクションステップへ遷移
+    setTimeout(() => {
+      setStep('action');
+    }, 300);
   };
 
   // 外部レビューサイトへの誘導（高評価の場合）

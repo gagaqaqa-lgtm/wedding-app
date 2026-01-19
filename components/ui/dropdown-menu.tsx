@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils/cn';
 
 // DropdownMenuコンテキスト
@@ -93,18 +94,75 @@ const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContent
     const context = React.useContext(DropdownMenuContext);
     const contentRef = React.useRef<HTMLDivElement>(null);
     const triggerRef = React.useRef<HTMLElement | null>(null);
+    const [position, setPosition] = React.useState({ top: 0, left: 0 });
 
     React.useImperativeHandle(ref, () => contentRef.current as HTMLDivElement);
 
-    // Trigger要素を探す
+    // Trigger要素を探して位置を計算
     React.useEffect(() => {
-      if (contentRef.current) {
-        const parent = contentRef.current.parentElement;
-        if (parent) {
-          triggerRef.current = parent.querySelector('button') || null;
+      if (!context?.open) return;
+
+      const findTrigger = () => {
+        // aria-expanded="true"のbutton要素を探す（現在開いているメニューのトリガー）
+        const buttons = document.querySelectorAll('button[aria-expanded="true"]');
+        if (buttons.length > 0) {
+          // 最後に開いたメニューのトリガーを使用
+          triggerRef.current = buttons[buttons.length - 1] as HTMLElement;
         }
-      }
-    }, [context?.open]);
+      };
+
+      const updatePosition = () => {
+        findTrigger();
+        
+        if (triggerRef.current && contentRef.current) {
+          const triggerRect = triggerRef.current.getBoundingClientRect();
+          const contentRect = contentRef.current.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+
+          let top = triggerRect.bottom + sideOffset;
+          let left = triggerRect.left;
+
+          // alignに応じて位置を調整
+          if (align === 'end') {
+            left = triggerRect.right - (contentRect.width || 200);
+          } else if (align === 'center') {
+            left = triggerRect.left + (triggerRect.width / 2) - ((contentRect.width || 200) / 2);
+          }
+
+          // ビューポートからはみ出さないように調整
+          if (left + (contentRect.width || 200) > viewportWidth) {
+            left = viewportWidth - (contentRect.width || 200) - 8;
+          }
+          if (left < 8) {
+            left = 8;
+          }
+
+          // 下にはみ出す場合は上に表示
+          if (top + (contentRect.height || 100) > viewportHeight) {
+            top = triggerRect.top - (contentRect.height || 100) - sideOffset;
+          }
+          if (top < 8) {
+            top = 8;
+          }
+
+          setPosition({ top, left });
+        }
+      };
+
+      // 位置を更新（少し遅延させてDOMが完全にレンダリングされた後に実行）
+      const timeoutId = setTimeout(updatePosition, 10);
+
+      // スクロールやリサイズ時に位置を更新
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }, [context?.open, align, sideOffset]);
 
     React.useEffect(() => {
       if (!context?.open) return;
@@ -142,21 +200,17 @@ const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContent
 
     if (!context?.open) return null;
 
-    const alignClasses = {
-      start: 'left-0',
-      end: 'right-0',
-      center: 'left-1/2 -translate-x-1/2',
-    };
-
     return (
       <div
         ref={contentRef}
         className={cn(
-          'absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-gray-200 bg-white p-1 text-gray-950 shadow-md',
-          alignClasses[align],
+          'fixed z-[9999] min-w-[8rem] overflow-hidden rounded-md border border-gray-200 bg-white p-1 text-gray-950 shadow-md',
           className
         )}
-        style={{ top: `calc(100% + ${sideOffset}px)` }}
+        style={{ 
+          top: `${position.top}px`, 
+          left: `${position.left}px`,
+        }}
         {...props}
       >
         {children}
@@ -221,9 +275,21 @@ const DropdownMenuLabel = React.forwardRef<HTMLDivElement, DropdownMenuLabelProp
 );
 DropdownMenuLabel.displayName = 'DropdownMenuLabel';
 
+// DropdownMenuPortal - React Portalを使用してbody直下にレンダリング
+const DropdownMenuPortal = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || typeof window === 'undefined') return null;
+
+  return createPortal(children, document.body);
+};
+
 // 未使用のコンポーネント（互換性のため）
 const DropdownMenuGroup = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const DropdownMenuPortal = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 const DropdownMenuSub = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 const DropdownMenuSubContent = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 const DropdownMenuSubTrigger = ({ children }: { children: React.ReactNode }) => <>{children}</>;

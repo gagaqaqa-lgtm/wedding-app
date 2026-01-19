@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import type { Venue, VenuePlan } from '../page';
+import type { Venue, VenuePlan, VenueStatus } from '@/lib/types/schema';
 
 // フォームスキーマ
 const createVenueSchema = z.object({
@@ -50,7 +50,14 @@ type CreateVenueFormValues = z.infer<typeof createVenueSchema>;
 interface CreateVenueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (venue: Venue) => void;
+  onSuccess: (venueData: {
+    name: string;
+    code: string;
+    plan: VenuePlan;
+    status: VenueStatus;
+    adminName: string;
+    adminEmail: string;
+  }) => void;
 }
 
 export function CreateVenueDialog({ open, onOpenChange, onSuccess }: CreateVenueDialogProps) {
@@ -70,23 +77,17 @@ export function CreateVenueDialog({ open, onOpenChange, onSuccess }: CreateVenue
   const onSubmit = async (values: CreateVenueFormValues) => {
     setIsSubmitting(true);
     try {
-      // 新しい会場IDを生成（実際の実装ではバックエンドで生成）
-      const newId = `v_${String(Date.now()).slice(-6)}`;
-
-      // 新しい会場オブジェクトを作成
-      const newVenue: Venue = {
-        id: newId,
+      // 親コンポーネントに通知（Service層で会場を作成）
+      onSuccess({
         name: values.name,
         code: values.code,
-        plan: values.plan as VenuePlan,
-        status: 'ONBOARDING', // 新規作成時は導入中
-        lastActiveAt: new Date(),
-        adminName: values.adminName,
-        adminEmail: values.adminEmail,
-      };
-
-      // 親コンポーネントに通知
-      onSuccess(newVenue);
+        plan: values.plan,
+        status: 'ACTIVE', // 新規作成時はアクティブ
+        admin: {
+          name: values.adminName,
+          email: values.adminEmail,
+        },
+      });
 
       // フォームをリセット
       form.reset();

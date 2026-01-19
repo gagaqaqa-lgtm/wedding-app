@@ -46,8 +46,8 @@ const navItems: NavItem[] = [
   { label: 'みんなの写真', href: '/couple/gallery', icon: Icons.Images },
 ];
 
-const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
-const MOCK_VENUE_ID = 'venue-1'; // TODO: 認証情報から取得
+const MOCK_WEDDING_ID = '1'; // TODO: 認証情報から取得
+const MOCK_VENUE_ID = 'venue-standard'; // TODO: 認証情報から取得
 
 // カウントダウン計算
 function calculateDaysUntil(targetDate: Date): number {
@@ -85,7 +85,8 @@ function HeroCountdown() {
           getVenueInfo(MOCK_VENUE_ID),
         ]);
         setWeddingDate(date);
-        setVenueCoverImage(venue.coverImageUrl || 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80');
+        // venueがundefinedの場合のフォールバック
+        setVenueCoverImage(venue?.coverImageUrl || 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=800&q=80');
         setDaysUntil(calculateDaysUntil(date));
       } catch (error) {
         console.error('Failed to load data:', error);

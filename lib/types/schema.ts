@@ -142,70 +142,19 @@ export interface TeamMember extends User {
 // ============================================================================
 
 /**
- * 会場プラン
+ * @deprecated 新しい型定義は @/lib/types/venue からインポートしてください
+ * 後方互換性のため、ここから再エクスポートしています
  */
-export type VenuePlan = 'LIGHT' | 'STANDARD' | 'PREMIUM';
+export type {
+  VenuePlan,
+  VenueStatus,
+  Venue,
+  VenueAdmin,
+} from './venue';
 
-/**
- * 会場ステータス
- */
-export type VenueStatus = 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING';
-
-/**
- * 会場情報
- * 
- * 結婚式場の基本情報と契約情報
- */
-export interface Venue {
-  /** 会場ID */
-  id: string;
-  
-  /** 会場名 */
-  name: string;
-  
-  /** 会場コード（URLに使用される識別子） */
-  code: string;
-  
-  /** 契約プラン */
-  plan: VenuePlan;
-  
-  /** 会場ステータス */
-  status: VenueStatus;
-  
-  /** 最終アクティブ日時（ISO 8601形式） */
-  lastActiveAt: string;
-  
-  /** 作成日時（ISO 8601形式） */
-  createdAt: string;
-  
-  /** 初期管理者名 */
-  adminName: string;
-  
-  /** 初期管理者メールアドレス */
-  adminEmail: string;
-  
-  /** 会場カバー画像URL（ゲスト入口画面の背景に使われる） */
-  coverImageUrl?: string;
-  
-  /** LINE連携による投稿制限解除機能の有効/無効 */
-  enableLineUnlock?: boolean;
-  
-  /** Google MapsレビューURL */
-  googleMapsReviewUrl?: string;
-  
-  /** LINE公式アカウントURL */
-  lineOfficialAccountUrl?: string;
-  
-  /** 表示会場名 */
-  displayVenueName?: string;
-  
-  /** 口コミ収集設定（新郎新婦向け） */
-  coupleReviewUrl?: string;
-  coupleReviewThreshold?: number;
-  
-  /** 口コミ収集設定（ゲスト向け） */
-  guestReviewUrl?: string;
-  guestReviewThreshold?: number;
+// 後方互換性のため、既存の型名もエクスポート（新しい型定義と同じ）
+export type { VenuePlan as VenuePlanType } from './venue';
+export type { VenueStatus as VenueStatusType } from './venue';
   
   /** レビュー通知メールアドレス */
   reviewNotificationEmail?: string;

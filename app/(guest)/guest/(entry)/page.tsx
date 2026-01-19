@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { DEFAULT_VENUE_NAME } from '@/lib/constants/venues';
 
 // ダミーデータ（実際はURLパラメータやAPIから取得）
@@ -13,7 +12,7 @@ const WEDDINGS = [
   { id: 2, groom: '鈴木家', bride: '高橋家', time: '15:30', passcode: '1111' },
 ];
 
-type Step = 'entrance' | 'gate' | 'dashboard';
+type Step = 'entrance' | 'gate';
 type Wedding = typeof WEDDINGS[0];
 
 export default function GuestPortalPage() {
@@ -49,6 +48,7 @@ export default function GuestPortalPage() {
           // 認証成功: 鍵が開くアニメーション
           setIsUnlocked(true);
           setTimeout(() => {
+            // アンケートページへ直接遷移（Review Gatingフロー）
             router.push('/guest/survey');
           }, 1500);
         } else {
@@ -64,14 +64,6 @@ export default function GuestPortalPage() {
     }
   }, [passcode, selectedWedding, isUnlocking, isUnlocked]);
 
-  const handleLogout = () => {
-    setStep('entrance');
-    setSelectedWedding(null);
-    setPasscode('');
-    setIsUnlocking(false);
-    setIsUnlocked(false);
-    setShake(false);
-  };
 
   // Step 1: Venue Entrance
   if (step === 'entrance') {
@@ -342,142 +334,6 @@ export default function GuestPortalPage() {
               </motion.div>
             )}
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Step 3: Dashboard
-  if (step === 'dashboard' && selectedWedding) {
-    return (
-      <div className="min-h-[100dvh] relative overflow-hidden bg-stone-50">
-        {/* 背景装飾 */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div
-            className="absolute -top-40 -left-40 w-96 h-96 bg-rose-100/20 rounded-full blur-3xl"
-            animate={{
-              x: [0, 50, 0],
-              y: [0, 30, 0],
-              scale: [1, 1.1, 1],
-            }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-          />
-        </div>
-
-        {/* コンテンツ */}
-        <div className="relative z-10 min-h-[100dvh] flex flex-col items-center justify-center px-4 py-12 sm:py-16 md:py-20">
-          {/* ヘッダー */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="text-center mb-8 sm:mb-12 md:mb-16 pt-safe-top"
-          >
-            <h1 className="font-shippori text-stone-800 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
-              Welcome to {selectedWedding.groom} & {selectedWedding.bride}'s Wedding
-            </h1>
-            <p className="text-stone-600 text-sm sm:text-base md:text-lg font-sans">
-              本日はご参列いただき、誠にありがとうございます
-            </p>
-          </motion.div>
-
-          {/* メニューカード */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="w-full max-w-2xl mx-auto space-y-6 sm:space-y-8"
-          >
-            {/* Gallery カード */}
-            <motion.a
-              href="/guest/gallery"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6, ease: 'easeOut' }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="block relative h-full bg-white/60 backdrop-blur-xl border-2 border-stone-200/50 rounded-2xl sm:rounded-3xl p-8 sm:p-10 md:p-12 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-stone-200/80 via-stone-100/80 to-stone-50/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
-              <div className="mb-6 sm:mb-8 flex items-center justify-start">
-                <motion.div
-                  className="text-stone-800 w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/80 backdrop-blur-sm shadow-lg group-hover:shadow-xl transition-shadow duration-300"
-                  whileHover={{ rotate: [0, -10, 10, -10, 0], scale: 1.1 }}
-                  transition={{ duration: 0.5, ease: 'easeInOut' }}
-                >
-                  <svg className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </motion.div>
-              </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-shippori font-semibold text-stone-800 mb-3 sm:mb-4">
-                📸 GALLERY
-              </h2>
-              <p className="text-stone-600 text-base sm:text-lg font-sans leading-relaxed mb-6">
-                結婚式の写真を閲覧・保存できます
-              </p>
-              <div className="flex items-center gap-2 text-stone-700 font-sans">
-                <span className="text-sm sm:text-base">詳細を見る</span>
-                <svg className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </motion.a>
-
-            {/* Message カード */}
-            <motion.a
-              href="/guest/survey"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6, ease: 'easeOut' }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="block relative h-full bg-white/60 backdrop-blur-xl border-2 border-stone-200/50 rounded-2xl sm:rounded-3xl p-8 sm:p-10 md:p-12 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-200/80 via-amber-100/80 to-amber-50/80 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
-              <div className="mb-6 sm:mb-8 flex items-center justify-start">
-                <motion.div
-                  className="text-amber-900 w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/80 backdrop-blur-sm shadow-lg group-hover:shadow-xl transition-shadow duration-300"
-                  whileHover={{ rotate: [0, -10, 10, -10, 0], scale: 1.1 }}
-                  transition={{ duration: 0.5, ease: 'easeInOut' }}
-                >
-                  <svg className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </motion.div>
-              </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-shippori font-semibold text-amber-900 mb-3 sm:mb-4">
-                ✉️ MESSAGE
-              </h2>
-              <p className="text-stone-600 text-base sm:text-lg font-sans leading-relaxed mb-6">
-                ご感想をお聞かせください
-              </p>
-              <div className="flex items-center gap-2 text-stone-700 font-sans">
-                <span className="text-sm sm:text-base">詳細を見る</span>
-                <svg className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </motion.a>
-          </motion.div>
-
-          {/* ログアウトボタン */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            onClick={handleLogout}
-            className="mt-8 sm:mt-12 text-stone-500 hover:text-stone-700 text-sm sm:text-base font-sans flex items-center gap-2 pb-safe-bottom transition-colors"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            <span>ログアウト</span>
-          </motion.button>
         </div>
       </div>
     );

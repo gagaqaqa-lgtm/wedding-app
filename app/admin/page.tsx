@@ -8,6 +8,9 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getAllVenues } from '@/lib/services/mock/venueService';
+import { useEffect, useState } from 'react';
+import type { Venue } from '@/lib/types/schema';
 import {
   Table,
   TableBody,
@@ -17,135 +20,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-// Venue型定義（会場管理画面と統一）
-export type VenuePlan = 'LIGHT' | 'STANDARD' | 'PREMIUM';
-export type VenueStatus = 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING';
-
-export interface Venue {
-  id: string;
-  name: string;
-  code: string;
-  plan: VenuePlan;
-  status: VenueStatus;
-  lastActiveAt: Date;
-  adminName: string;
-  adminEmail: string;
-  createdAt: Date; // 登録日時を追加
-}
-
-// モックデータ（会場管理画面と同様の構造）
-const MOCK_VENUES: Venue[] = [
-  {
-    id: 'v_001',
-    name: 'グランドホテル東京',
-    code: 'grand-hotel-tokyo',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T10:30:00'),
-    adminName: '山田 太郎',
-    adminEmail: 'admin@grandhotel-tokyo.jp',
-    createdAt: new Date('2024-01-10T10:00:00'),
-  },
-  {
-    id: 'v_002',
-    name: 'オーシャンビュー横浜',
-    code: 'oceanview-yokohama',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-14T15:20:00'),
-    adminName: '佐藤 花子',
-    adminEmail: 'contact@oceanview-yokohama.jp',
-    createdAt: new Date('2024-01-08T14:00:00'),
-  },
-  {
-    id: 'v_003',
-    name: 'ガーデンウェディング大阪',
-    code: 'garden-wedding-osaka',
-    plan: 'STANDARD',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-13T09:15:00'),
-    adminName: '鈴木 一郎',
-    adminEmail: 'info@garden-wedding-osaka.jp',
-    createdAt: new Date('2024-01-05T09:00:00'),
-  },
-  {
-    id: 'v_004',
-    name: 'パレスホテル名古屋',
-    code: 'palace-nagoya',
-    plan: 'PREMIUM',
-    status: 'SUSPENDED',
-    lastActiveAt: new Date('2024-01-05T14:00:00'),
-    adminName: '田中 美咲',
-    adminEmail: 'admin@palace-nagoya.jp',
-    createdAt: new Date('2023-12-20T10:00:00'),
-  },
-  {
-    id: 'v_005',
-    name: 'リゾートウェディング沖縄',
-    code: 'resort-okinawa',
-    plan: 'PREMIUM',
-    status: 'ONBOARDING',
-    lastActiveAt: new Date('2024-01-10T11:45:00'),
-    adminName: '伊藤 健',
-    adminEmail: 'contact@resort-okinawa.jp',
-    createdAt: new Date('2024-01-12T11:00:00'),
-  },
-  {
-    id: 'v_006',
-    name: 'クラシックホール京都',
-    code: 'classic-kyoto',
-    plan: 'STANDARD',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T16:30:00'),
-    adminName: '高橋 由美',
-    adminEmail: 'info@classic-kyoto.jp',
-    createdAt: new Date('2023-12-15T10:00:00'),
-  },
-  {
-    id: 'v_007',
-    name: 'モダンウェディング福岡',
-    code: 'modern-fukuoka',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-12T13:20:00'),
-    adminName: '渡辺 雄一',
-    adminEmail: 'admin@modern-fukuoka.jp',
-    createdAt: new Date('2023-11-20T10:00:00'),
-  },
-  {
-    id: 'v_008',
-    name: 'エレガントホール仙台',
-    code: 'elegant-sendai',
-    plan: 'STANDARD',
-    status: 'SUSPENDED',
-    lastActiveAt: new Date('2023-12-28T10:00:00'),
-    adminName: '中村 麻衣',
-    adminEmail: 'contact@elegant-sendai.jp',
-    createdAt: new Date('2023-10-15T10:00:00'),
-  },
-  {
-    id: 'v_009',
-    name: 'ロイヤルパレス札幌',
-    code: 'royal-sapporo',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T08:00:00'),
-    adminName: '小林 正',
-    adminEmail: 'info@royal-sapporo.jp',
-    createdAt: new Date('2024-01-14T08:00:00'),
-  },
-  {
-    id: 'v_010',
-    name: 'シーサイドウェディング神戸',
-    code: 'seaside-kobe',
-    plan: 'PREMIUM',
-    status: 'ONBOARDING',
-    lastActiveAt: new Date('2024-01-08T12:30:00'),
-    adminName: '加藤 愛',
-    adminEmail: 'admin@seaside-kobe.jp',
-    createdAt: new Date('2024-01-11T12:00:00'),
-  },
-];
+// Venue型定義（schema.tsからインポート）
+import type { Venue, VenuePlan, VenueStatus } from '@/lib/types/schema';
 
 // メトリクスカードコンポーネント
 interface MetricCardProps {
@@ -218,21 +94,39 @@ const getStatusLabel = (status: VenueStatus): string => {
 };
 
 export default function SuperAdminDashboardPage() {
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // データの読み込み
+  useEffect(() => {
+    const loadVenues = async () => {
+      try {
+        const data = await getAllVenues();
+        setVenues(data);
+      } catch (error) {
+        console.error('Failed to load venues:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadVenues();
+  }, []);
+
   // 統計データの計算
-  const totalVenues = MOCK_VENUES.length;
-  const activeVenues = MOCK_VENUES.filter((v) => v.status === 'ACTIVE').length;
+  const totalVenues = venues.length;
+  const activeVenues = venues.filter((v) => v.status === 'ACTIVE').length;
   const activeRate = totalVenues > 0 ? ((activeVenues / totalVenues) * 100).toFixed(1) : '0.0';
 
-  // 今月の新規契約数（1月に登録された会場）
+  // 今月の新規契約数（今月に登録された会場）
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const newVenuesThisMonth = MOCK_VENUES.filter((v) => {
-    const createdDate = v.createdAt;
+  const newVenuesThisMonth = venues.filter((v) => {
+    const createdDate = new Date(v.createdAt);
     return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
   }).length;
 
   // 今月の推定収益（モック計算：各プランに基づく）
-  const estimatedMonthlyRevenue = MOCK_VENUES.reduce((sum, v) => {
+  const estimatedMonthlyRevenue = venues.reduce((sum, v) => {
     let revenue = 0;
     switch (v.plan) {
       case 'LIGHT':
@@ -249,9 +143,19 @@ export default function SuperAdminDashboardPage() {
   }, 0);
 
   // 最近登録された会場（登録日時でソート、最新5件）
-  const recentVenues = [...MOCK_VENUES]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  const recentVenues = [...venues]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col min-h-screen font-sans antialiased">
+        <div className="flex-1 overflow-auto bg-slate-50 flex items-center justify-center">
+          <p className="text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-screen font-sans antialiased">
@@ -354,7 +258,7 @@ export default function SuperAdminDashboardPage() {
                             {getPlanLabel(venue.plan)}
                           </TableCell>
                           <TableCell className="font-sans antialiased">
-                            {format(venue.createdAt, 'yyyy/MM/dd', { locale: ja })}
+                            {format(new Date(venue.createdAt), 'yyyy/MM/dd', { locale: ja })}
                           </TableCell>
                           <TableCell>
                             <Badge

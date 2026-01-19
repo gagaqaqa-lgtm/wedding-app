@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
-// @ts-ignore - canvas-confetti型定義
-import confetti from 'canvas-confetti';
 import { PostWeddingThankYouCard } from '@/components/PostWeddingThankYouCard';
 import { motion } from 'framer-motion';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/services/api';
 import type { Table } from '@/lib/types/schema';
@@ -93,7 +93,7 @@ const Icons = {
 };
 
 // モックデータ（挙式日のみ）
-const MOCK_WEDDING_ID = 'wedding-1'; // TODO: 認証情報から取得
+const MOCK_WEDDING_ID = '1'; // TODO: 認証情報から取得
 
 // モックデータ（初期データ、APIから取得する想定）
 const INITIAL_TABLES: Table[] = [
@@ -183,6 +183,7 @@ function calculateDaysUntil(targetDate: Date): number {
 }
 
 export default function CoupleTablesPage() {
+  const router = useRouter();
   const [weddingDate, setWeddingDate] = useState<Date | null>(null);
   const [daysUntil, setDaysUntil] = useState(0);
   const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
@@ -215,7 +216,7 @@ export default function CoupleTablesPage() {
   const [isTableSheetOpen, setIsTableSheetOpen] = useState(false);
   const [currentTableName, setCurrentTableName] = useState('');
   const [currentMessage, setCurrentMessage] = useState('');
-  const [currentPhotos, setCurrentPhotos] = useState<File[]>([]); // アップロード前の一時的なファイル
+  const [currentPhoto, setCurrentPhoto] = useState<File | null>(null); // アップロード前の一時的なファイル（1枚のみ）
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null); // アップロード済みの写真URL
   
   // 共通の状態
@@ -226,16 +227,16 @@ export default function CoupleTablesPage() {
   
   // コンプライアンスチェック関連
   const [showComplianceModal, setShowComplianceModal] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // 1枚のみ
   const [hasAgreedToCompliance, setHasAgreedToCompliance] = useState(false);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // プレビューURLのクリーンアップ（モーダルが閉じられたとき）
   useEffect(() => {
-    if (!showComplianceModal && previewUrls.length > 0) {
+    if (!showComplianceModal && previewUrl) {
       // モーダルが閉じられたときにプレビューURLをクリーンアップ
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
-      setPreviewUrls([]);
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showComplianceModal]);
@@ -273,39 +274,6 @@ export default function CoupleTablesPage() {
     return () => clearInterval(interval);
   }, [weddingDate]);
 
-  // Celebration Mode: 当日以降は紙吹雪を表示
-  useEffect(() => {
-    if (isWeddingDayOrAfter) {
-      const duration = 3000;
-      const animationEnd = Date.now() + duration;
-      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
-      function randomInRange(min: number, max: number) {
-        return Math.random() * (max - min) + min;
-      }
-
-      const interval = setInterval(function() {
-        const timeLeft = animationEnd - Date.now();
-
-        if (timeLeft <= 0) {
-          return clearInterval(interval);
-        }
-
-        const particleCount = 50 * (timeLeft / duration);
-        confetti({
-          ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
-        });
-        confetti({
-          ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
-        });
-      }, 250);
-    }
-  }, [isWeddingDayOrAfter]);
-
   // 卓ごとの設定のハンドラー
   const handleTableClick = (tableId: string) => {
     const table = tables.find(t => t.id === tableId);
@@ -314,7 +282,7 @@ export default function CoupleTablesPage() {
       setCurrentTableName(table.name);
       setCurrentMessage(table.message);
       setCurrentPhotoUrl(table.photoUrl);
-      setCurrentPhotos([]); // 編集時は空にリセット
+      setCurrentPhoto(null); // 編集時は空にリセット
       setIsTableSheetOpen(true);
     }
   };
@@ -323,13 +291,16 @@ export default function CoupleTablesPage() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // ファイルをステートに保存してコンプライアンスチェックモーダルを表示
-    const filesArray = Array.from(files);
-    setSelectedFiles(filesArray);
+    // 最初の1枚のみを選択（単一選択）
+    const file = files[0];
+    setSelectedFile(file);
     
-    // プレビューURLを生成
-    const urls = filesArray.map((file) => URL.createObjectURL(file));
-    setPreviewUrls(urls);
+    // プレビューURLを生成（既存のURLがあればクリーンアップ）
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
     
     setShowComplianceModal(true);
     setHasAgreedToCompliance(false); // リセット
@@ -337,9 +308,9 @@ export default function CoupleTablesPage() {
     e.target.value = '';
   };
   
-  // コンプライアンスチェック後の写真追加処理
+  // コンプライアンスチェック後の写真設定処理（既存を置換）
   const handlePhotoUploadAfterCompliance = async () => {
-    if (selectedFiles.length === 0) return;
+    if (!selectedFile) return;
 
     if (!hasAgreedToCompliance) {
       toast.error('投稿前に約束に同意してください', {
@@ -349,22 +320,27 @@ export default function CoupleTablesPage() {
       return;
     }
 
-    // ファイルをcurrentPhotosに追加
-    setCurrentPhotos(prev => [...prev, ...selectedFiles]);
+    // ファイルをcurrentPhotoに設定（既存を置換）
+    setCurrentPhoto(selectedFile);
     
     // コンプライアンスチェックモーダルを閉じる
     setShowComplianceModal(false);
-    setSelectedFiles([]);
+    setSelectedFile(null);
     setHasAgreedToCompliance(false);
     
-    toast.success('写真を追加しました', {
+    toast.success('写真を設定しました', {
       description: '保存ボタンを押して設定を保存してください',
       duration: 3000,
     });
   };
 
-  const handleRemovePhoto = (index: number) => {
-    setCurrentPhotos(prev => prev.filter((_, i) => i !== index));
+  const handleRemovePhoto = () => {
+    // 既存のプレビューURLがあればクリーンアップ
+    if (currentPhoto && previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setCurrentPhoto(null);
+    setPreviewUrl(null);
   };
 
   const handleSaveTable = async () => {
@@ -376,13 +352,13 @@ export default function CoupleTablesPage() {
       // 写真が選択されている場合、アップロード処理
       let photoUrl = currentPhotoUrl;
       
-      if (currentPhotos.length > 0) {
+      if (currentPhoto) {
         // TODO: 実際のuserIdを取得（認証情報から）
         const userId = 'couple-1';
         
-        // 最初の写真のみをアップロード（卓用の写真は1枚）
+        // 選択された写真をアップロード（卓用の写真は1枚）
         const uploadedPhoto = await api.uploadPhoto(
-          currentPhotos[0],
+          currentPhoto,
           MOCK_WEDDING_ID,
           selectedTable,
           userId
@@ -406,7 +382,11 @@ export default function CoupleTablesPage() {
       
       setIsUploading(false);
       setIsTableSheetOpen(false);
-      setCurrentPhotos([]); // リセット
+      setCurrentPhoto(null); // リセット
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
       
       toast.success('設定を保存しました', {
         description: 'ゲストに公開されます',
@@ -484,6 +464,24 @@ export default function CoupleTablesPage() {
     <div className="min-h-dvh bg-gray-50 pb-24">
       {/* メインコンテンツ */}
       <div className="max-w-md mx-auto px-4 py-4 md:py-6 space-y-3 md:space-y-6">
+        {/* 戻るボタン */}
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-2"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/couple')}
+            className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 -ml-2"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
+            戻る
+          </Button>
+        </motion.div>
+
         {/* ヘッダー */}
         <section>
           <div className="mb-4 md:mb-6">
@@ -558,7 +556,7 @@ export default function CoupleTablesPage() {
                   )}
                 >
                   {/* パターン1: 写真あり・完了 - 背景に写真を表示 */}
-                  {pattern1 && (
+                  {pattern1 && table.photoUrl && (
                     <>
                       <img
                         src={table.photoUrl}
@@ -680,57 +678,55 @@ export default function CoupleTablesPage() {
                 )}
               >
                 <Icons.ImagePlus className="w-5 h-5" />
-                写真を追加
+                {currentPhoto || currentPhotoUrl ? '写真を変更' : '写真を設定'}
               </button>
               
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />
 
-              {/* 選択された写真のプレビュー */}
-              {(currentPhotoUrl || currentPhotos.length > 0) && (
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {/* 既存の写真URLがある場合 */}
-                  {currentPhotoUrl && (
-                    <div className="relative group">
-                      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+              {/* 選択された写真のプレビュー（1枚表示） */}
+              {(currentPhotoUrl || currentPhoto || previewUrl) && (
+                <div className="mt-4">
+                  <div className="relative group">
+                    <div className="aspect-square max-w-md mx-auto rounded-lg overflow-hidden bg-gray-100 shadow-md">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="選択中の写真"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : currentPhoto ? (
+                        <img
+                          src={URL.createObjectURL(currentPhoto)}
+                          alt="選択中の写真"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : currentPhotoUrl ? (
                         <img
                           src={currentPhotoUrl}
                           alt="既存の写真"
                           className="w-full h-full object-cover"
                         />
-                      </div>
-                      <button
-                        onClick={() => setCurrentPhotoUrl(null)}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity active:scale-95"
-                      >
-                        <Icons.X className="w-4 h-4" />
-                      </button>
+                      ) : null}
                     </div>
-                  )}
-                  {/* 新規選択されたファイル */}
-                  {currentPhotos.map((photo, index) => (
-                    <div key={index} className="relative group">
-                      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
-                        <img
-                          src={URL.createObjectURL(photo)}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleRemovePhoto(index)}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity active:scale-95"
-                      >
-                        <Icons.X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    <button
+                      onClick={() => {
+                        if (currentPhoto || previewUrl) {
+                          handleRemovePhoto();
+                        } else {
+                          setCurrentPhotoUrl(null);
+                        }
+                      }}
+                      className="absolute top-3 right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity active:scale-95 shadow-lg"
+                    >
+                      <Icons.X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -738,7 +734,7 @@ export default function CoupleTablesPage() {
             {/* プレビューボタン */}
             <button
               onClick={() => handlePreview('table')}
-              disabled={(currentPhotoUrl === null && currentPhotos.length === 0) && currentMessage.length === 0}
+              disabled={(currentPhotoUrl === null && !currentPhoto && !previewUrl) && currentMessage.length === 0}
               className={cn(
                 "w-full h-12 rounded-xl font-semibold text-emerald-600 text-base",
                 "border-2 border-emerald-300 bg-emerald-50",
@@ -821,28 +817,27 @@ export default function CoupleTablesPage() {
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{currentMessage}</p>
                     </div>
                   )}
-                  {(currentPhotoUrl || currentPhotos.length > 0) ? (
-                    <div className="space-y-3">
-                      {/* 既存の写真URL */}
-                      {currentPhotoUrl && (
-                        <div className="rounded-lg overflow-hidden">
-                          <img
-                            src={currentPhotoUrl}
-                            alt="既存の写真"
-                            className="w-full h-auto"
-                          />
-                        </div>
-                      )}
-                      {/* 新規選択されたファイル */}
-                      {currentPhotos.map((photo, index) => (
-                        <div key={index} className="rounded-lg overflow-hidden">
-                          <img
-                            src={URL.createObjectURL(photo)}
-                            alt={`Preview ${index + 1}`}
-                            className="w-full h-auto"
-                          />
-                        </div>
-                      ))}
+                  {(currentPhotoUrl || currentPhoto || previewUrl) ? (
+                    <div className="rounded-lg overflow-hidden">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="選択中の写真"
+                          className="w-full h-auto"
+                        />
+                      ) : currentPhoto ? (
+                        <img
+                          src={URL.createObjectURL(currentPhoto)}
+                          alt="選択中の写真"
+                          className="w-full h-auto"
+                        />
+                      ) : currentPhotoUrl ? (
+                        <img
+                          src={currentPhotoUrl}
+                          alt="既存の写真"
+                          className="w-full h-auto"
+                        />
+                      ) : null}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
@@ -863,9 +858,12 @@ export default function CoupleTablesPage() {
           setShowComplianceModal(open);
           if (!open) {
             // モーダルを閉じる際にクリーンアップ
-            setSelectedFiles([]);
+            if (previewUrl) {
+              URL.revokeObjectURL(previewUrl);
+            }
+            setSelectedFile(null);
+            setPreviewUrl(null);
             setHasAgreedToCompliance(false);
-            // プレビューURLのクリーンアップはuseEffectで処理
           }
         }}
       >
@@ -914,21 +912,19 @@ export default function CoupleTablesPage() {
               ※登録された写真は、<strong>ゲスト全員に公開</strong>されます。
             </p>
 
-            {/* 写真プレビュー */}
-            {selectedFiles.length > 0 && previewUrls.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto p-3 bg-stone-50 rounded-lg">
-                {selectedFiles.map((file, index) => (
-                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-stone-200">
-                    <img
-                      src={previewUrls[index]}
-                      alt={`プレビュー ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 truncate">
-                      {file.name}
-                    </div>
+            {/* 写真プレビュー（1枚表示） */}
+            {selectedFile && previewUrl && (
+              <div className="flex justify-center p-3 bg-stone-50 rounded-lg">
+                <div className="relative aspect-square w-full max-w-xs rounded-lg overflow-hidden border border-stone-200">
+                  <img
+                    src={previewUrl}
+                    alt="プレビュー"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 truncate">
+                    {selectedFile.name}
                   </div>
-                ))}
+                </div>
               </div>
             )}
 
@@ -953,7 +949,11 @@ export default function CoupleTablesPage() {
             <button
               onClick={() => {
                 setShowComplianceModal(false);
-                setSelectedFiles([]);
+                if (previewUrl) {
+                  URL.revokeObjectURL(previewUrl);
+                }
+                setSelectedFile(null);
+                setPreviewUrl(null);
                 setHasAgreedToCompliance(false);
               }}
               className="w-full sm:w-auto px-4 py-2 text-stone-600 hover:text-stone-800 font-medium rounded-lg transition-colors font-serif"
@@ -962,7 +962,7 @@ export default function CoupleTablesPage() {
             </button>
             <button
               onClick={handlePhotoUploadAfterCompliance}
-              disabled={!hasAgreedToCompliance || isUploading}
+              disabled={!hasAgreedToCompliance || isUploading || !selectedFile}
               className="w-full sm:w-auto px-6 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 font-serif"
             >
               {isUploading ? (
@@ -971,14 +971,14 @@ export default function CoupleTablesPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>追加中...</span>
+                  <span>設定中...</span>
                 </>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  <span>写真を追加する</span>
+                  <span>写真を設定する</span>
                 </>
               )}
             </button>

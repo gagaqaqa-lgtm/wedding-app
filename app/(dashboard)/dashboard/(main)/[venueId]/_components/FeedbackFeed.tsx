@@ -150,8 +150,13 @@ function FeedbackFeedContent({ venueId }: FeedbackFeedProps) {
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-50 rounded-lg">
+          <div className="relative p-2 bg-emerald-50 rounded-lg">
             <MessageSquareQuote className="w-5 h-5 text-emerald-600" />
+            {feedbacks.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                {feedbacks.length}
+              </span>
+            )}
           </div>
           <h2 className="text-xl font-bold text-gray-900">最新のお客様の声</h2>
         </div>

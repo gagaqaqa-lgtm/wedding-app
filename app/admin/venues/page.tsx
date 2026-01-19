@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, MoreVertical, Edit, LogIn, Ban, Building2, Eye } from 'lucide-react';
+import { Search, Plus, MoreVertical, Edit, LogIn, Ban, Building2, Eye, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getAllVenues, createVenue } from '@/lib/services/mock/venueService';
+import type { Venue, VenuePlan, VenueStatus } from '@/lib/types/schema';
 import {
   Table,
   TableBody,
@@ -24,126 +26,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CreateVenueDialog } from './_components/CreateVenueDialog';
+import { ProxyLoginDialog } from './_components/ProxyLoginDialog';
 
-// Venue型定義
-export type VenuePlan = 'LIGHT' | 'STANDARD' | 'PREMIUM';
-export type VenueStatus = 'ACTIVE' | 'SUSPENDED' | 'ONBOARDING';
-
-export interface Venue {
-  id: string;
-  name: string;
-  code: string; // URLに使われる会場コード（例: hotel-kumamoto）
-  plan: VenuePlan;
-  status: VenueStatus;
-  lastActiveAt: Date;
-  // 初期管理者アカウント情報
-  adminName: string;
-  adminEmail: string;
-}
-
-// 初期モックデータ（10件）
-const INITIAL_VENUES: Venue[] = [
-  {
-    id: 'v_001',
-    name: 'グランドホテル東京',
-    code: 'grand-hotel-tokyo',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T10:30:00'),
-    adminName: '山田 太郎',
-    adminEmail: 'admin@grandhotel-tokyo.jp',
-  },
-  {
-    id: 'v_002',
-    name: 'オーシャンビュー横浜',
-    code: 'oceanview-yokohama',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-14T15:20:00'),
-    adminName: '佐藤 花子',
-    adminEmail: 'contact@oceanview-yokohama.jp',
-  },
-  {
-    id: 'v_003',
-    name: 'ガーデンウェディング大阪',
-    code: 'garden-wedding-osaka',
-    plan: 'STANDARD',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-13T09:15:00'),
-    adminName: '鈴木 一郎',
-    adminEmail: 'info@garden-wedding-osaka.jp',
-  },
-  {
-    id: 'v_004',
-    name: 'パレスホテル名古屋',
-    code: 'palace-nagoya',
-    plan: 'PREMIUM',
-    status: 'SUSPENDED',
-    lastActiveAt: new Date('2024-01-05T14:00:00'),
-    adminName: '田中 美咲',
-    adminEmail: 'admin@palace-nagoya.jp',
-  },
-  {
-    id: 'v_005',
-    name: 'リゾートウェディング沖縄',
-    code: 'resort-okinawa',
-    plan: 'PREMIUM',
-    status: 'ONBOARDING',
-    lastActiveAt: new Date('2024-01-10T11:45:00'),
-    adminName: '伊藤 健',
-    adminEmail: 'contact@resort-okinawa.jp',
-  },
-  {
-    id: 'v_006',
-    name: 'クラシックホール京都',
-    code: 'classic-kyoto',
-    plan: 'STANDARD',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T16:30:00'),
-    adminName: '高橋 由美',
-    adminEmail: 'info@classic-kyoto.jp',
-  },
-  {
-    id: 'v_007',
-    name: 'モダンウェディング福岡',
-    code: 'modern-fukuoka',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-12T13:20:00'),
-    adminName: '渡辺 雄一',
-    adminEmail: 'admin@modern-fukuoka.jp',
-  },
-  {
-    id: 'v_008',
-    name: 'エレガントホール仙台',
-    code: 'elegant-sendai',
-    plan: 'STANDARD',
-    status: 'SUSPENDED',
-    lastActiveAt: new Date('2023-12-28T10:00:00'),
-    adminName: '中村 麻衣',
-    adminEmail: 'contact@elegant-sendai.jp',
-  },
-  {
-    id: 'v_009',
-    name: 'ロイヤルパレス札幌',
-    code: 'royal-sapporo',
-    plan: 'PREMIUM',
-    status: 'ACTIVE',
-    lastActiveAt: new Date('2024-01-15T08:00:00'),
-    adminName: '小林 正',
-    adminEmail: 'info@royal-sapporo.jp',
-  },
-  {
-    id: 'v_010',
-    name: 'シーサイドウェディング神戸',
-    code: 'seaside-kobe',
-    plan: 'PREMIUM',
-    status: 'ONBOARDING',
-    lastActiveAt: new Date('2024-01-08T12:30:00'),
-    adminName: '加藤 愛',
-    adminEmail: 'admin@seaside-kobe.jp',
-  },
-];
+// Venue型定義（schema.tsからインポート）
 
 // ステータスバッジの色分け
 const getStatusBadgeVariant = (status: VenueStatus): 'indigo' | 'destructive' | 'warning' => {
@@ -208,8 +93,26 @@ const formatDate = (date: Date): string => {
 export default function VenuesPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [venues, setVenues] = useState<Venue[]>(INITIAL_VENUES);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isProxyLoginDialogOpen, setIsProxyLoginDialogOpen] = useState(false);
+  const [selectedVenueForLogin, setSelectedVenueForLogin] = useState<{ id: string; name: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // データの読み込み
+  useEffect(() => {
+    const loadVenues = async () => {
+      try {
+        const data = await getAllVenues();
+        setVenues(data);
+      } catch (error) {
+        console.error('Failed to load venues:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadVenues();
+  }, []);
 
   // 検索フィルタリング
   const filteredVenues = useMemo(() => {
@@ -219,16 +122,41 @@ export default function VenuesPage() {
     const query = searchQuery.toLowerCase();
     return venues.filter(
       (venue) =>
-        venue.name.toLowerCase().includes(query) ||
-        venue.code.toLowerCase().includes(query) ||
-        venue.adminEmail.toLowerCase().includes(query) ||
-        venue.adminName.toLowerCase().includes(query)
+        (venue.name?.toLowerCase() ?? '').includes(query) ||
+        (venue.code?.toLowerCase() ?? '').includes(query) ||
+        (venue.admin?.email?.toLowerCase() ?? '').includes(query) ||
+        (venue.admin?.name?.toLowerCase() ?? '').includes(query)
     );
   }, [searchQuery, venues]);
 
   // 新規会場追加ハンドラー
-  const handleCreateVenue = (newVenue: Venue) => {
-    setVenues((prev) => [newVenue, ...prev]);
+  const handleCreateVenue = async (venueData: {
+    name: string;
+    code: string;
+    plan: VenuePlan;
+    status: VenueStatus;
+    admin: {
+      name: string;
+      email: string;
+    };
+  }) => {
+    try {
+      const result = await createVenue({
+        ...venueData,
+        coverImageUrl: undefined,
+        enableLineUnlock: false,
+      });
+
+      // キー重複回避のため、フロントエンド側で一時的にユニークIDを付与する
+      const newVenue = {
+        ...result,
+        id: `venue-${Date.now()}`,
+      };
+
+      setVenues((prev) => [newVenue, ...prev]);
+    } catch (error) {
+      console.error('Failed to create venue:', error);
+    }
   };
 
   // アクション処理
@@ -236,15 +164,20 @@ export default function VenuesPage() {
     router.push(`/admin/venues/${venueId}`);
   };
 
-  const handleEdit = (venueId: string) => {
-    // 詳細ページへ遷移（編集は詳細ページで行う）
-    router.push(`/admin/venues/${venueId}`);
+  const handleLoginAsVenue = (venueId: string) => {
+    // 選択された会場情報を保存してモーダルを開く
+    const venue = venues.find((v) => v.id === venueId);
+    if (venue) {
+      setSelectedVenueForLogin({ id: venue.id, name: venue.name });
+      setIsProxyLoginDialogOpen(true);
+    }
   };
 
-  const handleLoginAsVenue = (venueId: string) => {
-    // TODO: API経由で代理ログインを実行
-    // TODO: 代理ログイン処理を実装
-    // window.location.href = `/dashboard/${venueId}`;
+  // 代理ログイン成功時の処理（共通コンポーネントからのコールバック）
+  // 注: 実際の遷移処理は ProxyLoginDialog コンポーネント内で行われるため、
+  // このコールバックは将来的な追加処理が必要な場合に備えて残しています
+  const handleProxyLoginSuccess = (venueId: string) => {
+    // 必要に応じて追加の処理をここに記述
   };
 
   const handleSuspend = (venueId: string) => {
@@ -324,64 +257,47 @@ export default function VenuesPage() {
                     <TableBody>
                       {filteredVenues.map((venue) => (
                         <TableRow key={venue.id} className="hover:bg-indigo-50 transition-colors">
-                          <TableCell className="font-medium">
-                            <Link
-                              href={`/admin/venues/${venue.id}`}
-                              className="text-indigo-600 hover:text-indigo-700 hover:underline font-sans antialiased"
-                            >
-                              {venue.name}
-                            </Link>
+                          <TableCell className="font-medium text-gray-900 font-sans antialiased">
+                            {venue.name}
                           </TableCell>
-                          <TableCell className="text-gray-600 font-mono text-sm">{venue.code}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-gray-600 font-mono text-sm whitespace-nowrap">{venue.code}</TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <div className="text-sm">
-                              <div className="font-medium text-gray-900">{venue.adminName}</div>
-                              <div className="text-gray-500 text-xs">{venue.adminEmail}</div>
+                              <div className="font-medium text-gray-900 whitespace-nowrap">{venue.admin.name}</div>
+                              <div className="text-gray-500 text-xs whitespace-nowrap">{venue.admin.email}</div>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <Badge variant="secondary">{getPlanLabel(venue.plan)}</Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             <Badge variant={getStatusBadgeVariant(venue.status)}>
                               {getStatusLabel(venue.status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-gray-600">
-                            {formatDate(venue.lastActiveAt)}
+                          <TableCell className="text-gray-600 whitespace-nowrap">
+                            {formatDate(new Date(venue.lastActiveAt))}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="relative inline-block">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="h-4 w-4" />
-                                    <span className="sr-only">メニューを開く</span>
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="font-sans antialiased">
-                                  <DropdownMenuItem onClick={() => handleViewDetails(venue.id)} className="font-sans antialiased">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    詳細を見る
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleEdit(venue.id)} className="font-sans antialiased">
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    編集
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleLoginAsVenue(venue.id)} className="font-sans antialiased">
-                                    <LogIn className="mr-2 h-4 w-4" />
-                                    代理ログイン
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => handleSuspend(venue.id)}
-                                    className="text-red-600 focus:text-red-600 font-sans antialiased"
-                                  >
-                                    <Ban className="mr-2 h-4 w-4" />
-                                    アカウント停止
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDetails(venue.id)}
+                                className="font-sans antialiased"
+                              >
+                                <Settings className="w-4 h-4 mr-2" />
+                                詳細・設定
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLoginAsVenue(venue.id)}
+                                className="gap-2 text-stone-600 hover:text-stone-900 border-stone-300 hover:bg-stone-50 font-sans antialiased"
+                              >
+                                <LogIn className="w-4 h-4" />
+                                代理ログイン
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -401,6 +317,22 @@ export default function VenuesPage() {
         onOpenChange={setIsCreateDialogOpen}
         onSuccess={handleCreateVenue}
       />
+
+      {/* 代理ログイン確認ダイアログ */}
+      {selectedVenueForLogin && (
+        <ProxyLoginDialog
+          open={isProxyLoginDialogOpen}
+          onOpenChange={(open) => {
+            setIsProxyLoginDialogOpen(open);
+            if (!open) {
+              setSelectedVenueForLogin(null);
+            }
+          }}
+          venueId={selectedVenueForLogin.id}
+          venueName={selectedVenueForLogin.name}
+          onSuccess={handleProxyLoginSuccess}
+        />
+      )}
     </div>
   );
 }

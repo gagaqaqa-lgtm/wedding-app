@@ -584,10 +584,13 @@ export async function getVenue(venueId: string): Promise<Venue> {
     code: 'omotesando-terrace',
     plan: 'PREMIUM',
     status: 'ACTIVE',
+    admin: {
+      name: '管理者',
+      email: 'admin@example.com',
+    },
     lastActiveAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
-    adminName: '管理者',
-    adminEmail: 'admin@example.com',
+    updatedAt: new Date().toISOString(),
     enableLineUnlock: false,
   };
 }
